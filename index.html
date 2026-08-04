@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://*.google.com; img-src 'self' data: blob: https://*.google.com https://images.unsplash.com; font-src 'self' https://cdnjs.cloudflare.com; frame-src 'self' https://*.google.com;">
+        
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.3.0/ol.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        
+        <title>Reglamento de Espacios Públicos | San Borja</title>
+        
+        <style>
+        :root {
+            --sb-bg: #f1f5f9;
+            --sb-navy: #1e293b;
+            --sb-accent: #3b82f6;
+            --sb-text: #334155;
+            --sb-border: #e2e8f0;
+        }
+
+        html, body { 
+            width: 100vw; 
+            height: 100dvh; /* Uso de dvh para evitar que la barra de navegación móvil tape contenido */
+            padding: 0; margin: 0; overflow: hidden; 
+            font-family: 'Segoe UI', Roboto, sans-serif; background-color: var(--sb-bg);
+            -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
+            overscroll-behavior-y: none; /* Bloquea el "Pull to refresh" en Android/iOS */
+            touch-action: pan-x pan-y; /* Optimización de gestos táctiles */
+        }
+        input { -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text; user-select: text; }
+        img { -webkit-user-drag: none; pointer-events: none; }
+        #app-header img, .modal-content img { pointer-events: auto; }
+
+        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; outline: none; background-color: #ffffff; }
+        .ol-viewport { cursor: grab !important; }
+        .ol-viewport.is-hovering { cursor: pointer !important; } 
+        .ol-viewport:active { cursor: grabbing !important; }
+
+        /* =========================================
+           PANEL IZQUIERDO (Buscador + Ficha)
+           ========================================= */
+        #left-panel { 
+            position: absolute; 
+            top: max(15px, env(safe-area-inset-top)); /* Respeta el notch de iOS */
+            left: max(15px, env(safe-area-inset-left)); 
+            z-index: 2000; width: 360px; display: flex; flex-direction: column; gap: 10px; 
+            max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 30px); 
+            pointer-events: none; 
+        }
+        
+        #header-box { background: rgba(255, 255, 255, 0.95); padding: 18px 20px; border-radius: 8px; border-left: 5px solid var(--sb-navy); box-shadow: 0 4px 15px rgba(0,0,0,0.1); pointer-events: auto; backdrop-filter: blur(8px); flex-shrink: 0; }
+        #header-box h1 { margin: 0 0 6px 0; color: #0f172a; font-size: 15px; text-transform: uppercase; font-weight: 800; }
+        #header-box h2 { margin: 0 0 10px 0; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        #header-box h3 { margin: 0; color: var(--sb-accent); font-size: 13px; font-weight: 700; }
+
+        #search-box { pointer-events: auto; position: relative; flex-shrink: 0; }
+        #buscador-rgep { width: 100%; padding: 14px 15px; border-radius: 8px; border: 1px solid var(--sb-border); box-shadow: 0 4px 15px rgba(0,0,0,0.08); font-size: 14px; box-sizing: border-box; outline: none; transition: 0.3s; background: white;}
+        #buscador-rgep:focus { border-color: var(--sb-accent); box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2); }
+        
+        #lista-resultados { background: white; max-height: 250px; overflow-y: auto; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); margin-top: 8px; display: none; border: 1px solid var(--sb-border); pointer-events: auto; }
+        .resultado-item { padding: 12px 15px; border-bottom: 1px solid var(--sb-bg); cursor: pointer; border-left: 4px solid transparent; }
+        .resultado-item:hover { background: #f8fafc; border-left-color: var(--sb-accent); }
+        .res-titulo { font-weight: 700; color: var(--sb-navy); font-size: 13px; display: block; }
+        .res-sub { font-size: 11px; color: #64748b; margin-top: 3px; display: block; }
+
+        #ficha-tecnica {
+            background: white; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 1px solid var(--sb-border);
+            pointer-events: auto; overflow-y: auto; display: none; flex-direction: column;
+        }
+        .ficha-header { background: var(--sb-navy); color: white; padding: 12px 15px; font-weight: 700; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+        .ficha-header button { background: transparent; border: none; color: white; cursor: pointer; font-size: 16px; opacity: 0.8; }
+        .ficha-header button:hover { opacity: 1; }
+        .ficha-body { padding: 15px; }
+
+        .sv-container { width: 100%; height: 200px; background: #e2e8f0; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid var(--sb-border); margin-bottom: 15px; }
+        
+        .tabla-attr { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-bottom: 15px; }
+        .tabla-attr td { padding: 8px 0; border-bottom: 1px solid var(--sb-bg); }
+        .tabla-attr td:first-child { color: #64748b; font-weight: 600; width: 45%; }
+        .tabla-attr td:last-child { color: #0f172a; font-weight: 700; text-align: right; }
+
+        .btn-accion { display: block; width: 100%; background: var(--sb-accent); color: white; text-align: center; padding: 12px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 0.8rem; box-sizing: border-box; transition: 0.2s;}
+        .btn-accion:hover { background: #2563eb; }
+
+        .guia-box { background: #f8fafc; border: 1px solid var(--sb-border); border-radius: 8px; padding: 12px; margin-top: 5px; }
+        .guia-titulo { font-size: 0.75rem; font-weight: 800; color: var(--sb-navy); margin-bottom: 10px; text-transform: uppercase; border-bottom: 1px solid var(--sb-border); padding-bottom: 5px; }
+        .guia-item { font-size: 0.75rem; color: #475569; margin-bottom: 10px; line-height: 1.4; border-left: 2px solid var(--sb-accent); padding-left: 8px;}
+        .guia-item strong { color: #0f172a; display: block; margin-bottom: 2px; }
+
+        /* =========================================
+           PANEL DERECHO (Control de Capas)
+           ========================================= */
+        #panel-derecho { position: absolute; top: 0; right: 0; width: 320px; height: 100dvh; background-color: #ffffff; z-index: 2000; display: flex; flex-direction: column; box-shadow: -5px 0 25px rgba(0,0,0,0.1); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-bottom: env(safe-area-inset-bottom); box-sizing: border-box; }
+        #panel-derecho.oculto { transform: translateX(100%); }
+        .cabecera-panel { background-color: var(--sb-navy); padding: 20px; padding-top: max(20px, env(safe-area-inset-top)); position: relative; flex-shrink: 0; }
+        #btn-cerrar-panel { position: absolute; top: max(15px, env(safe-area-inset-top)); right: 15px; background: transparent; border: none; color: white; font-size: 20px; cursor: pointer; }
+        #btn-abrir-panel { position: absolute; top: max(15px, env(safe-area-inset-top)); right: max(15px, env(safe-area-inset-right)); background: var(--sb-navy); border: none; color: white; font-size: 20px; cursor: pointer; z-index: 1500; width: 48px; height: 48px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; }
+        .contenido-scroll { flex-grow: 1; overflow-y: auto; padding: 20px; padding-right: max(20px, env(safe-area-inset-right)); }
+        
+        .control-seccion { margin-bottom: 25px; }
+        .seccion-titulo { font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;}
+        .capa-item { display: flex; align-items: center; margin-bottom: 10px; background: #f8fafc; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--sb-border); }
+        .capa-item.sub-item { margin-left: 20px; background: transparent; border: none; padding: 5px 0; }
+        .capa-item input[type="checkbox"] { transform: scale(1.2); margin-right: 12px; accent-color: var(--sb-accent); cursor: pointer; }
+        .capa-item label { font-size: 0.85rem; font-weight: 600; color: var(--sb-text); cursor: pointer; flex-grow: 1; }
+        input[type="range"] { width: 100%; accent-color: var(--sb-accent); cursor: pointer; }
+
+        /* Splash Screen */
+        #welcome-modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; z-index: 4000; transition: opacity 0.4s ease; }
+        .modal-content { position: relative; background: #ffffff; width: 90%; max-width: 480px; border-radius: 12px; padding: 40px 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); text-align: center; }
+        .btn-close-splash { position: absolute; top: 15px; right: 15px; background: transparent; border: none; color: #64748b; font-size: 20px; cursor: pointer; transition: color 0.2s; }
+        .btn-close-splash:hover { color: #0f172a; }
+        .modal-content img { height: 60px; margin-bottom: 20px; pointer-events: none; }
+        .modal-content h2 { margin-top: 0; color: var(--sb-navy); font-size: 1.3rem; font-weight: 800; }
+        .modal-content p { font-size: 0.9rem; color: #64748b; line-height: 1.6; margin-bottom: 25px; }
+        .btn-ingresar { background-color: var(--sb-accent); color: white; border: none; padding: 14px 28px; font-size: 14px; font-weight: 700; border-radius: 8px; cursor: pointer; text-transform: uppercase; width: 100%; }
+
+        /* Controles OL */
+        .north-arrow-ctrl { position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: max(20px, env(safe-area-inset-left)); background: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.15); cursor: pointer; z-index: 1000; }
+        .north-arrow-ctrl i { color: var(--sb-navy); font-size: 18px; transition: transform 0.1s; }
+        .ol-zoom { top: auto !important; bottom: calc(70px + env(safe-area-inset-bottom)) !important; left: max(20px, env(safe-area-inset-left)) !important; }
+        .ol-scale-line { background: rgba(255,255,255,0.9); border-radius: 4px; bottom: max(20px, env(safe-area-inset-bottom)); left: calc(65px + env(safe-area-inset-left)); position: absolute; padding: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .ol-scale-line-inner { border-color: var(--sb-navy); color: var(--sb-navy); font-weight: 600; font-size: 10px; }
+
+        /* =========================================
+           RESPONSIVE (Modo Vertical - Portrait)
+           ========================================= */
+        @media (max-width: 896px) and (orientation: portrait) {
+            #left-panel { width: calc(100% - max(30px, env(safe-area-inset-left) + env(safe-area-inset-right))); max-height: calc(100dvh - 150px); }
+            #panel-derecho { top: auto; bottom: 0; width: 100%; height: 50dvh; border-radius: 20px 20px 0 0; transform: translateY(100%); }
+            #panel-derecho.oculto { transform: translateY(100%); }
+            #panel-derecho:not(.oculto) { transform: translateY(0); }
+            .cabecera-panel { border-radius: 20px 20px 0 0; padding: 15px 20px; }
+            #btn-abrir-panel { top: auto; bottom: max(20px, env(safe-area-inset-bottom)); }
+            .north-arrow-ctrl { bottom: max(90px, env(safe-area-inset-bottom) + 70px); }
+            .ol-zoom { bottom: calc(140px + env(safe-area-inset-bottom)) !important; }
+            .ol-scale-line { bottom: max(90px, env(safe-area-inset-bottom) + 70px); left: calc(65px + env(safe-area-inset-left)); }
+        }
+
+        /* =========================================
+           RESPONSIVE (Modo Horizontal - Landscape)
+           ========================================= */
+        @media (max-width: 896px) and (orientation: landscape) {
+            #left-panel { width: 300px; max-height: calc(100dvh - 30px); }
+            #panel-derecho { 
+                top: 0; bottom: auto; width: 320px; height: 100dvh; 
+                border-radius: 20px 0 0 20px; transform: translateX(100%); right: 0; 
+            }
+            #panel-derecho:not(.oculto) { transform: translateX(0); }
+            .cabecera-panel { border-radius: 20px 0 0 0; padding: 15px 20px; }
+            .ol-scale-line { display: none; /* Se oculta para no saturar espacio horizontal en móvil */ }
+            #btn-abrir-panel { top: max(15px, env(safe-area-inset-top)); bottom: auto; }
+            .north-arrow-ctrl { bottom: max(20px, env(safe-area-inset-bottom)); }
+            .ol-zoom { bottom: calc(70px + env(safe-area-inset-bottom)) !important; }
+        }
+        </style>
+    </head>
+    <body>
+
+        <div id="left-panel">
+            <div id="header-box">
+                <h1>Espacios Públicos</h1>
+                <h2>Municipalidad de San Borja</h2>
+                <h3>Visor del Reglamento de Espacios Públicos</h3>
+            </div>
+            
+            <div id="search-box">
+                <input type="text" id="buscador-rgep" placeholder="🔍 Buscar parques, plazas o vías..." autocomplete="off">
+                <div id="lista-resultados"></div>
+            </div>
+
+            <div id="ficha-tecnica">
+                <div class="ficha-header">
+                    <span id="ficha-title">Detalles</span>
+                    <button onclick="cerrarFicha()"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="ficha-body" id="ficha-content">
+                    </div>
+            </div>
+        </div>
+
+        <div id="map"></div>
+        
+        <button id="btn-abrir-panel" title="Abrir Panel de Capas"><i class="fas fa-layer-group"></i></button>
+
+        <div id="welcome-modal">
+            <div class="modal-content">
+                <button class="btn-close-splash" onclick="cerrarPortada()" title="Cerrar"><i class="fas fa-times"></i></button>
+                <img src="images/LOGO IN 2.jpg" alt="Logo San Borja" onerror="this.style.display='none'">
+                <h2>Propuesta de Decreto de Alcaldía</h2>
+                <p>Visor distrital del Reglamento de Espacios Públicos del distrito de San Borja.</p>
+                <button class="btn-ingresar" onclick="cerrarPortada()">Ingresar al Visor</button>
+            </div>
+        </div>
+
+        <div id="panel-derecho" class="oculto">
+            <div class="cabecera-panel">
+                <button id="btn-cerrar-panel"><i class="fas fa-times"></i></button>
+                <h3 style="margin: 0; color: white; font-size: 1.1rem;">Panel de Capas</h3>
+            </div>
+            
+            <div class="contenido-scroll">
+                <div class="control-seccion">
+                    <div class="seccion-titulo"><i class="fas fa-layer-group"></i> Capas Activas</div>
+                    
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-redvial" checked>
+                        <label for="chk-redvial">Red Vial Local</label>
+                    </div>
+                    <div class="capa-item sub-item">
+                        <input type="checkbox" id="chk-vial-prin" checked>
+                        <label for="chk-vial-prin">Vías Principales / Preferenciales</label>
+                    </div>
+                    <div class="capa-item sub-item">
+                        <input type="checkbox" id="chk-vial-sec" checked>
+                        <label for="chk-vial-sec">Vías Locales Secundarias</label>
+                    </div>
+
+                    <div class="capa-item" style="margin-top: 15px;">
+                        <input type="checkbox" id="chk-parques" checked>
+                        <label for="chk-parques">Parques y Plazas (Módulos)</label>
+                    </div>
+                    
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-manzanas" checked>
+                        <label for="chk-manzanas">Manzanas Urbanas</label>
+                    </div>
+                </div>
+
+                <div class="control-seccion">
+                    <div class="seccion-titulo"><i class="fas fa-satellite"></i> Transparencia Satélite</div>
+                    <input type="range" id="sat-opacity" min="0" max="1" step="0.05" value="0.3">
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/ol@v7.3.0/dist/ol.js"></script>
+        <script src="layers/Manzanas_0.js"></script>
+        <script src="layers/Parques_2.js"></script>
+        <script src="layers/parques_data.js"></script>
+        <script src="layers/red_vial_3.js"></script>
+
+        <script>
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        function cerrarPortada() {
+            var m = document.getElementById('welcome-modal');
+            m.style.opacity = '0'; setTimeout(() => m.style.display = 'none', 300);
+        }
+        
+        var panelDer = document.getElementById('panel-derecho');
+        var btnAbrir = document.getElementById('btn-abrir-panel');
+        document.getElementById('btn-cerrar-panel').onclick = function() { panelDer.classList.add('oculto'); btnAbrir.style.display = 'flex'; };
+        btnAbrir.onclick = function() { panelDer.classList.remove('oculto'); btnAbrir.style.display = 'none'; };
+
+        var ficha = document.getElementById('ficha-tecnica');
+        function cerrarFicha() {
+            ficha.style.display = 'none';
+            sourceHighlight.clear();
+        }
+
+        var formatJSON = new ol.format.GeoJSON();
+        function leerFeaturesSeguro(jsonData) {
+            if(!jsonData) return [];
+            return formatJSON.readFeatures(jsonData, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
+        }
+
+        // ESTILOS DINÁMICOS
+
+        // ─── Reglamento de Espacios Públicos — Tabla Oficial Art. 43 ──
+        var ATU_PARAMS = {
+            'Conservación':  {ovLim:'85%', ca:'60%', ogLim:'15%', ms:'10%', mr:'5%',  mc:'2%',  mu:'2%',  ioe:'0.015',hu:'250 m²',alt:'4 m'},
+            'Consolidación': {ovLim:'75%', ca:'40%', ogLim:'25%', ms:'15%', mr:'20%', mc:'2%',  mu:'2%',  ioe:'0.03', hu:'350 m²',alt:'4 m'},
+            'Generación':    {ovLim:'75%', ca:'30%', ogLim:'25%', ms:'15%', mr:'20%', mc:'5%',  mu:'2%',  ioe:'0.05', hu:'500 m²',alt:'4 m'},
+            'Dinamización':  {ovLim:'80%', ca:'30%', ogLim:'20%', ms:'15%', mr:'15%', mc:'5%',  mu:'2%',  ioe:'0.08', hu:'400 m²',alt:'7.5 m'},
+            'Renovación':    {ovLim:'40%', ca:'15%', ogLim:'60%', ms:'25%', mr:'40%', mc:'15%', mu:'15%', ioe:'0.2',  hu:'400 m²',alt:'4.5 m'}
+        };
+        var ATU_COLOR = {
+            'Conservación':'#16a34a','Consolidación':'#2563eb',
+            'Generación':'#ea580c','Dinamización':'#7c3aed','Renovación':'#dc2626'
+        };
+
+        var styleManzanas = new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(100, 116, 139, 0.4)', width: 1 }), fill: new ol.style.Fill({ color: 'rgba(241, 245, 249, 0.1)' }) });
+        
+        var styleParquesFn = function(feature, resolution) {
+            var styles = [new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#10b981', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.25)' }) })];
+            var z = map.getView().getZoomForResolution(resolution);
+            var nombre = feature.get('NOMBRE');
+            if (z > 16 && nombre) { 
+                styles.push(new ol.style.Style({
+                    text: new ol.style.Text({ text: nombre, placement: 'polygon', fill: new ol.style.Fill({ color: '#064e3b' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 3 }), font: 'bold 11px sans-serif', overflow: true })
+                }));
+            }
+            return styles;
+        };
+
+        var styleRedVialFn = function(feature, resolution) {
+            var isPrin = document.getElementById('chk-vial-prin').checked;
+            var isSec = document.getElementById('chk-vial-sec').checked;
+            
+            var clasif = String(feature.get('CLASIFIC') || feature.get('CLASIFICA') || feature.get('NIVEL') || '').toLowerCase();
+            var esPrincipal = clasif.includes('principal') || clasif.includes('preferencial') || clasif.includes('arterial');
+            
+            if (esPrincipal && !isPrin) return null;
+            if (!esPrincipal && !isSec) return null;
+
+            var styles = [new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#334155', width: 2.5, lineCap: 'round' }) })];
+
+            var z = map.getView().getZoomForResolution(resolution);
+            var nombre = feature.get('NOMBRE_FIN');
+            if (z > 16.5 && nombre) { 
+                styles.push(new ol.style.Style({
+                    text: new ol.style.Text({ text: nombre, placement: 'line', maxAngle: Math.PI / 4, fill: new ol.style.Fill({ color: '#0f172a' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 3.5 }), font: 'bold 11px sans-serif' })
+                }));
+            }
+            return styles;
+        };
+
+        var styleHighlight = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#3b82f6', width: 5 }), fill: new ol.style.Fill({ color: 'rgba(59, 130, 246, 0.3)' }) });
+
+        var satSource = new ol.source.XYZ({ url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', maxZoom: 22 });
+        var googleSat = new ol.layer.Tile({ source: satSource, opacity: 0.3 });
+
+        var vectorManzanas = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Manzanas_0 !== 'undefined' ? leerFeaturesSeguro(json_Manzanas_0) : [] }), style: styleManzanas, zIndex: 10 });
+        var vectorParques = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Parques_2 !== 'undefined' ? leerFeaturesSeguro(json_Parques_2) : [] }), style: styleParquesFn, declutter: true, zIndex: 12 });
+        var vectorRedVial = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_red_vial_3 !== 'undefined' ? leerFeaturesSeguro(json_red_vial_3) : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
+        
+        var sourceHighlight = new ol.source.Vector();
+        var layerHighlight = new ol.layer.Vector({ source: sourceHighlight, style: styleHighlight, zIndex: 20 });
+
+        var map = new ol.Map({
+            target: 'map', renderer: ['webgl', 'canvas'],
+            layers: [googleSat, vectorManzanas, vectorParques, vectorRedVial, layerHighlight],
+            view: new ol.View({ center: ol.proj.fromLonLat([-76.9933, -12.0951]), zoom: 14, minZoom: 13, maxZoom: 22 }),
+            controls: [new ol.control.Zoom(), new ol.control.ScaleLine({ units: 'metric' })]
+        });
+
+        // NORTE Y CENTRADO DE ROTACIÓN (Optimizado)
+        var northBtn = document.createElement('div');
+        northBtn.className = 'north-arrow-ctrl';
+        northBtn.innerHTML = '<i class="fas fa-location-arrow" id="compass-icon"></i>';
+        northBtn.onclick = function() {
+            var view = map.getView();
+            view.animate({ rotation: 0, duration: 500, easing: ol.easing.easeOut });
+        };
+        map.addControl(new ol.control.Control({ element: northBtn }));
+        map.getView().on('change:rotation', function() { document.getElementById('compass-icon').style.transform = `rotate(${map.getView().getRotation()}rad)`; });
+
+        // Eventos de Capas
+        document.getElementById('chk-redvial').onchange = e => {
+            vectorRedVial.setVisible(e.target.checked);
+            document.getElementById('chk-vial-prin').disabled = !e.target.checked;
+            document.getElementById('chk-vial-sec').disabled = !e.target.checked;
+        };
+        document.getElementById('chk-vial-prin').onchange = () => vectorRedVial.changed();
+        document.getElementById('chk-vial-sec').onchange = () => vectorRedVial.changed();
+        document.getElementById('chk-parques').onchange = e => vectorParques.setVisible(e.target.checked);
+        document.getElementById('chk-manzanas').onchange = e => vectorManzanas.setVisible(e.target.checked);
+        document.getElementById('sat-opacity').oninput = e => googleSat.setOpacity(parseFloat(e.target.value));
+
+        // ==========================================
+        // LÓGICA DE LA FICHA TÉCNICA Y STREET VIEW
+        // ==========================================
+        function agregarFilaValida(htmlArr, etiqueta, valor) {
+            if (valor && valor !== 'null' && String(valor).trim() !== '' && valor !== '-') {
+                htmlArr.push(`<tr><td>${etiqueta}</td><td>${valor}</td></tr>`);
+            }
+        }
+
+        function construirStreetView(coord) {
+            var lonLat = ol.proj.toLonLat(coord);
+            var lat = lonLat[1];
+            var lng = lonLat[0];
+            // Ciberseguridad: Añadido referrerpolicy="no-referrer"
+            return `<div class="sv-container">
+                        <iframe width="100%" height="100%" style="border:0;" src="https://maps.google.com/maps?q=${lat},${lng}&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed" allowfullscreen referrerpolicy="no-referrer"></iframe>
+                    </div>`;
+        }
+
+        map.on('singleclick', function(evt) {
+            var feature = map.forEachFeatureAtPixel(evt.pixel, function(f) { return f; }, { hitTolerance: 5 });
+            
+            if (!feature || feature.getProperties().MZ_ID) { cerrarFicha(); return; }
+
+            var p = feature.getProperties();
+            sourceHighlight.clear();
+            sourceHighlight.addFeature(feature);
+            
+            var title = document.getElementById('ficha-title');
+            var content = document.getElementById('ficha-content');
+            var htmlRows = [];
+            var finalHtml = construirStreetView(evt.coordinate);
+
+            if (p.NOMBRE) {
+                // Data from refined Excel (parques_data.js)
+                var pd2     = (typeof PARQUES_DATA !== 'undefined' && p['CÓDIGO']) ? (PARQUES_DATA[p['CÓDIGO']] || null) : null;
+                var atuTipo = (pd2 ? pd2.atu : null) || (p.ATU || '').split('/')[0].trim() || '—';
+                var ap      = ATU_PARAMS[atuTipo] || null;
+                var atuClr  = ATU_COLOR[atuTipo]  || '#334155';
+                var ocv     = pd2 ? pd2.ocv : null;   // % verde actual (from Excel)
+                var ocg     = pd2 ? pd2.ocg : null;   // % gris actual  (from Excel)
+
+                title.innerHTML = '<i class="fas fa-tree"></i> ' + p.NOMBRE;
+
+                var areaNum = parseFloat(p['ÁREA']);
+                var areaFmt = isNaN(areaNum) ? '—' : areaNum.toLocaleString('es-PE',{maximumFractionDigits:0}) + ' m²';
+
+                // ── Header ─────────────────────────────────────────────────
+                finalHtml += '<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid '+atuClr+'">'
+                           + '<span style="background:'+atuClr+';color:#fff;padding:3px 12px;border-radius:12px;font-size:0.68rem;font-weight:700;letter-spacing:.5px">'+atuTipo+'</span>'
+                           + '<div style="margin-top:8px;font-size:0.76rem;color:#64748b;line-height:1.7">'
+                           + (p['CÓDIGO'] ? '<strong style="color:#0f172a">'+p['CÓDIGO']+'</strong> · ' : '')
+                           + areaFmt
+                           + (p.CLASIFICAC ? '<br><span style="font-size:0.71rem">'+p.CLASIFICAC+'</span>' : '')
+                           + '</div></div>';
+
+                // helpers
+                var pct = function(v){ return v !== null && v !== undefined ? v.toFixed(1).replace('.0','') + '%' : '—'; };
+                var TH  = 'style="padding:9px 0 5px;font-size:0.6rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1.2px;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0"';
+                var TL  = 'style="color:#64748b;padding:5px 2px 4px;font-size:0.77rem"';
+                var TLA = 'style="color:#334155;font-weight:600;padding:5px 2px 4px;font-size:0.77rem"';
+                var TR  = 'style="text-align:right;font-weight:700;font-size:0.8rem;padding:5px 2px 4px"';
+                var TR2 = 'style="text-align:right;font-weight:600;font-size:0.78rem;color:#475569;padding:5px 2px 4px"';
+                var SEP = 'style="border-bottom:1px solid #f1f5f9"';
+
+                finalHtml += '<table style="width:100%;border-collapse:collapse">';
+
+                // ── BLOQUE 1: Situación actual (del Excel) ─────────────────
+                if (ocv !== null) {
+                    var ovLimNum = ap ? parseFloat(ap.ovLim) : null;
+                    var ogLimNum = ap ? parseFloat(ap.ogLim) : null;
+                    var ovOk = ovLimNum !== null ? ocv >= ovLimNum : null;
+                    var ogOk = ogLimNum !== null ? ocg <= ogLimNum : null;
+                    var tick = function(ok){ return ok === null ? '' : (ok ? ' <span style="color:#16a34a;font-size:.8rem">✓</span>' : ' <span style="color:#ef4444;font-size:.8rem">✗</span>'); };
+
+                    finalHtml += '<tr><td colspan="3" '+TH+'>Situación Actual del Parque</td></tr>'
+                    // verde bar + value
+                              + '<tr '+SEP+'>'
+                              + '<td '+TLA+'>Ocupación verde</td>'
+                              + '<td style="padding:5px 6px 4px;width:80px">'
+                              + '<div style="background:#e2e8f0;border-radius:3px;height:6px;overflow:hidden"><div style="background:#16a34a;width:'+ocv+'%;height:6px;border-radius:3px"></div></div>'
+                              + '</td>'
+                              + '<td '+TR+' style="text-align:right;font-weight:700;font-size:0.8rem;padding:5px 2px 4px;color:#16a34a">'+pct(ocv)+tick(ovOk)+'</td></tr>'
+                    // gris bar + value
+                              + '<tr '+SEP+'>'
+                              + '<td '+TL+'>Ocupación gris</td>'
+                              + '<td style="padding:5px 6px 4px">'
+                              + '<div style="background:#e2e8f0;border-radius:3px;height:6px;overflow:hidden"><div style="background:#94a3b8;width:'+ocg+'%;height:6px;border-radius:3px"></div></div>'
+                              + '</td>'
+                              + '<td '+TR+' style="text-align:right;font-weight:700;font-size:0.8rem;padding:5px 2px 4px;color:#64748b">'+pct(ocg)+tick(ogOk)+'</td></tr>';
+
+                    // Compliance note
+                    if (ovOk === false || ogOk === false) {
+                        finalHtml += '<tr><td colspan="3" style="font-size:0.66rem;color:#ef4444;padding:2px 2px 6px">'
+                                   + '&#9888; El parque presenta déficit respecto al límite normativo.</td></tr>';
+                    } else if (ovOk === true && ogOk === true) {
+                        finalHtml += '<tr><td colspan="3" style="font-size:0.66rem;color:#16a34a;padding:2px 2px 6px">'
+                                   + '&#10003; El parque cumple con los límites normativos.</td></tr>';
+                    }
+                }
+
+                // ── BLOQUE 2: Límites normativos (refinados) ───────────────
+                if (ap) {
+                    finalHtml += '<tr><td colspan="3" '+TH+'>Límites Normativos — Art. 43 RGEP</td></tr>'
+                              + '<tr '+SEP+'><td '+TLA+'>Áreas verdes mínimas</td><td></td><td '+TR+' style="text-align:right;font-weight:700;font-size:0.8rem;padding:5px 2px 4px;color:#16a34a">'+(ap.ovLim||'—')+'</td></tr>'
+                              + '<tr '+SEP+'><td '+TL+'>Cobertura arbórea mínima</td><td></td><td '+TR+' style="text-align:right;font-weight:600;font-size:0.78rem;padding:5px 2px 4px;color:#16a34a">'+(ap.ca||'—')+'</td></tr>'
+                              + '<tr style="border-bottom:1px solid #e2e8f0"><td '+TL+'>Gris máxima absoluta</td><td></td><td '+TR+' style="text-align:right;font-weight:700;font-size:0.8rem;padding:5px 2px 4px;color:#ef4444">'+(ap.ogLim||'—')+'</td></tr>';
+                }
+
+                // ── BLOQUE 3: Módulos Funcionales ─────────────────────────
+                if (ap) {
+                    finalHtml += '<tr><td colspan="3" '+TH+'>Módulos Funcionales</td></tr>'
+                              + '<tr '+SEP+'><td '+TL+'> Soporte <span style="color:#94a3b8;font-size:.7rem">(MS)</span></td><td></td><td '+TR2+'>'+(ap.ms||'—')+'</td></tr>'
+                              + '<tr '+SEP+'><td '+TL+'> Recreativo <span style="color:#94a3b8;font-size:.7rem">(MR)</span></td><td></td><td '+TR2+'>'+(ap.mr||'—')+'</td></tr>'
+                              + '<tr '+SEP+'><td '+TL+'> Comercial <span style="color:#94a3b8;font-size:.7rem">(MC)</span></td><td></td><td '+TR2+'>'+(ap.mc||'—')+'</td></tr>'
+                              + '<tr style="border-bottom:1px solid #e2e8f0"><td '+TL+'> Otros Usos <span style="color:#94a3b8;font-size:.7rem">(MU)</span></td><td></td><td '+TR2+'>'+(ap.mu||'—')+'</td></tr>'
+                              + '<tr><td colspan="3" style="font-size:0.61rem;color:#cbd5e1;padding:2px 2px 7px">* MC + MU ≤ 15% del área total</td></tr>';
+                }
+
+                // ── BLOQUE 4: Máximo de Área Techada para Módulos Funcionales ─────────────────────────────────
+                if (ap) {
+                    finalHtml += '<tr><td colspan="3" '+TH+'>Máximo de Área Techada para Módulos Funcionales</td></tr>'
+                              + '<tr '+SEP+'><td '+TL+'>Índice de Ocupación para Infraestructura (IOE)</td><td></td><td '+TR2+'>'+(ap.ioe||'—')+'</td></tr>'
+                              + '<tr '+SEP+'><td '+TL+'>Huella máxima</td><td></td><td '+TR2+'>'+(ap.hu||'—')+'</td></tr>'
+                              + '<tr><td '+TL+'>Altura máxima</td><td></td><td '+TR2+'>'+(ap.alt||'—')+'</td></tr>';
+                }
+
+                finalHtml += '</table>';
+            } else if (p.NOMBRE_FIN) {
+                title.innerHTML = `<i class="fas fa-road"></i> ${p.NOMBRE_FIN}`;
+                agregarFilaValida(htmlRows, "Clasificación Normativa", p.CLASIFIC);
+                if(p.ANCHO && p.ANCHO !== '-') htmlRows.push(`<tr><td>Ancho Normativo Vigente</td><td>${p.ANCHO} m</td></tr>`);
+                
+                finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
+                
+                if (p.FRANJAS && p.FRANJAS !== 'null' && String(p.FRANJAS).trim() !== '') {
+                    // Ciberseguridad: rel="noopener noreferrer"
+                    finalHtml += `<a href="${p.FRANJAS}" target="_blank" rel="noopener noreferrer" class="btn-accion"><i class="fas fa-file-pdf"></i> Diseño de Franjas (PDF)</a>`;
+                }
+            }
+
+            content.innerHTML = finalHtml;
+            ficha.style.display = 'flex';
+        });
+
+        map.on('pointermove', function(evt) {
+            if (evt.dragging) return;
+            var hit = map.forEachFeatureAtPixel(evt.pixel, function(f) { 
+                return f.getProperties().MZ_ID ? false : true; 
+            }, { hitTolerance: 5 });
+            map.getViewport().classList.toggle('is-hovering', hit);
+        });
+
+        // ==========================================
+        // BUSCADOR CON ENMARCADO Y AUTO-CLICK
+        // ==========================================
+        var dictBusqueda = [];
+        setTimeout(function() {
+            [vectorRedVial, vectorParques].forEach(layer => {
+                layer.getSource().getFeatures().forEach(f => {
+                    var p = f.getProperties();
+                    var nom = p.NOMBRE_FIN || p.NOMBRE || "";
+                    if (nom && nom.trim() !== "") {
+                        dictBusqueda.push({ label: nom, searchToken: nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(), tipo: p.NOMBRE_FIN ? "Vía" : "Parque", feature: f });
+                    }
+                });
+            });
+            dictBusqueda.sort((a, b) => a.label.localeCompare(b.label));
+        }, 1000);
+
+        var inputBuscador = document.getElementById('buscador-rgep');
+        var resDiv = document.getElementById('lista-resultados');
+
+        inputBuscador.addEventListener('input', function() {
+            var val = this.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            resDiv.innerHTML = '';
+            if(val.length < 2) { resDiv.style.display = 'none'; return; }
+            
+            var matches = dictBusqueda.filter(v => v.searchToken.includes(val)).slice(0, 8);
+            
+            if(matches.length === 0) {
+                resDiv.innerHTML = '<div style="padding:15px;color:#94a3b8;font-size:0.85rem;">Sin resultados.</div>';
+            } else {
+                matches.forEach(v => {
+                    var item = document.createElement('div');
+                    item.className = 'resultado-item';
+                    item.innerHTML = `<span class="res-titulo">${v.label}</span><span class="res-sub">${v.tipo}</span>`;
+                    item.onclick = function() {
+                        inputBuscador.value = v.label;
+                        resDiv.style.display = 'none';
+                        inputBuscador.blur();
+                        
+                        var ext = v.feature.getGeometry().getExtent();
+                        var center = ol.extent.getCenter(ext);
+                        
+                        var pLeft = window.innerWidth <= 896 ? 20 : 400; 
+                        var pBottom = window.innerWidth <= 896 ? 120 : 50; 
+                        map.getView().fit(ext, { padding: [50, 50, pBottom, pLeft], maxZoom: 18, duration: 800 });
+                        
+                        setTimeout(() => { map.dispatchEvent({ type: 'singleclick', coordinate: center, pixel: map.getPixelFromCoordinate(center) }); }, 850);
+                    };
+                    resDiv.appendChild(item);
+                });
+            }
+            resDiv.style.display = 'block';
+        });
+
+        document.addEventListener('click', e => { if(!document.getElementById('search-container').contains(e.target)) resDiv.style.display = 'none'; });
+        </script>
+    </body>
+</html>
