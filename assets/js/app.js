@@ -259,6 +259,7 @@ function mostrarFicha(feature, coordinate) {
 }
 
 map.on('singleclick', function(evt) {
+    if (document.body.classList.contains('streetview-targeting')) return;
     var feature = map.forEachFeatureAtPixel(evt.pixel, function(f) { return f; }, { hitTolerance: 5 });
     mostrarFicha(feature, evt.coordinate);
 });

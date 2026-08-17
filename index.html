@@ -42,6 +42,11 @@
         </div>
 
         <div id="map"></div>
+
+        <button id="btn-streetview" type="button" aria-label="Abrir Street View" aria-pressed="false" title="Street View: activa y selecciona un punto del mapa">
+            <img src="images/pegman.png" alt="">
+        </button>
+        <img id="streetview-drag-ghost" src="images/pegman.png" alt="" aria-hidden="true">
         
         <button id="btn-abrir-panel" type="button" title="Abrir panel de capas" aria-label="Abrir panel de capas"><i class="fas fa-layer-group"></i></button>
 
@@ -118,5 +123,6 @@
         <script src="layers/red_vial_3.js"></script>
 
         <script src="assets/js/app.js"></script>
+        <script src="assets/js/streetview.js"></script>
     </body>
 </html>

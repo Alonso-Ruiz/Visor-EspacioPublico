@@ -24,3 +24,13 @@ python -m http.server 8000
 Luego abre `http://localhost:8000`.
 
 El proyecto no requiere compilación ni instalación de dependencias.
+
+## Street View
+
+El botón Pegman de la esquina inferior derecha permite:
+
+- Activar Street View y seleccionar un punto del mapa.
+- Arrastrar el icono hasta una ubicación para definir también la orientación inicial.
+- Cancelar el modo de selección con la tecla `Escape`.
+
+La vista se abre en Google Maps usando las coordenadas seleccionadas; no requiere una clave de API.
