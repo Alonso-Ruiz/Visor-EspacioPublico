@@ -9,9 +9,10 @@
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         
         <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://*.google.com; img-src 'self' data: blob: https://*.google.com https://images.unsplash.com; font-src 'self' https://cdnjs.cloudflare.com; frame-src 'self' https://*.google.com;">
-        
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.3.0/ol.css">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <link rel="icon" type="image/png" href="images/Escudo_de_San_Borja.png">
+        <link rel="apple-touch-icon" href="images/Escudo_de_San_Borja.png">
         
         <title>Reglamento de Espacios Públicos | San Borja</title>
         
@@ -20,14 +21,37 @@
     <body>
 
         <div id="left-panel">
-            <div id="header-box">
+            <div id="header-box" class="info-hidden" aria-live="polite" aria-hidden="true">
                 <h1>Espacios Públicos</h1>
                 <h2>Municipalidad de San Borja</h2>
                 <h3>Visor del Reglamento de Espacios Públicos</h3>
+                <details id="anexos-detalle" class="anexos-detalle">
+                    <summary class="btn-ver-anexos">Ver anexos</summary>
+                    <div id="anexos-container" class="anexos-container">
+                        <ul class="anexos-lista">
+                            <li><a href="anexos/ORDENANZA QUE ESTABLECE LA CLASIFICACIÓN DE LAS VÍAS LOCALES Y APRUEBA LAS SECCIONES VIALES EN EL DISTRITO DE SAN BORJA.pdf" target="_blank" rel="noopener noreferrer">Publicación Oficial de Ordenanza N.° XXXX-2026-MSB</a></li>
+                            <li><a href="anexos/Anexo 1. Plano de clasificación de vías locales.pdf" target="_blank" rel="noopener noreferrer">Anexo 1: Plano de clasificación de vías locales.</a></li>
+                            <li><a href="anexos/Anexo 2. Plano de categoría de vías locales preferenciales.pdf" target="_blank" rel="noopener noreferrer">Anexo 2: Plano de categoría de vías locales preferenciales.</a></li>
+                            <li><a href="anexos/Anexo 3. Plano de subclasificación de vías locales secundarias.pdf" target="_blank" rel="noopener noreferrer">Anexo 3: Plano de subclasificación de vías locales secundarias.</a></li>
+                            <li><a href="anexos/Anexo 4. Plano de categorías de vías locales secundarias destinadas al tránsito vehicular.pdf" target="_blank" rel="noopener noreferrer">Anexo 4: Plano de categorías de vías locales secundarias destinadas al tránsito vehicular.</a></li>
+                            <li><a href="anexos/Anexo 5. Plano de categorías de vías locales secundarias con restricción vehicular.pdf" target="_blank" rel="noopener noreferrer">Anexo 5: Plano de categorías de vías locales secundarias con restricción vehicular.</a></li>
+                            <li><a href="anexos/Anexo 6. Plano de secciones viales normativas.pdf" target="_blank" rel="noopener noreferrer">Anexo 6: Plano de secciones viales normativas.</a></li>
+                            <li><a href="anexos/Anexo 7. Códigos de secciones viales normativas de las vías locales preferenciales.pdf" target="_blank" rel="noopener noreferrer">Anexo 7: Códigos de secciones viales normativas de las vías locales preferenciales.</a></li>
+                            <li><a href="anexos/Anexo 8. Códigos de secciones viales normativas de las vías locales secundarias.pdf" target="_blank" rel="noopener noreferrer">Anexo 8: Códigos de secciones viales normativas de las vías locales secundarias.</a></li>
+                            <li class="anexo-no-disponible">Anexo 9: Desarrollo de Secciones Viales Normativas (no entregado).</li>
+                            <li><a href="anexos/Anexo 10. Plano general de planta de alamedas y pasajes de trazado no lineal en Torres de San Borja.pdf" target="_blank" rel="noopener noreferrer">Anexo 10: Plano general de planta de alamedas y pasajes de trazado no lineal en Torres de San Borja.</a></li>
+                            <li><a href="anexos/Anexo 11. Desarrollo de plantas de alamedas y pasajes de trazado en Torres de San Borja.pdf" target="_blank" rel="noopener noreferrer">Anexo 11: Desarrollo de plantas de alamedas y pasajes de trazado en Torres de San Borja.</a></li>
+                            <li><a href="anexos/Anexo 12. Plano general de alamedas de trazado no lineal en Papa Juan XXIII.pdf" target="_blank" rel="noopener noreferrer">Anexo 12: Plano general de alamedas de trazado no lineal en Papa Juan XXIII.</a></li>
+                            <li><a href="anexos/Anexo 13. Desarrollo de plantas de alamedas de trazado no lineal en Papa Juan XXIII.pdf" target="_blank" rel="noopener noreferrer">Anexo 13: Desarrollo de plantas de alamedas de trazado no lineal en Papa Juan XXIII.</a></li>
+                            <li><a href="anexos/Anexo 14. Plano general de plantas de vías de trazado no lineal en Torres de Limatambo.pdf" target="_blank" rel="noopener noreferrer">Anexo 14: Plano general de plantas de vías de trazado no lineal en Torres de Limatambo.</a></li>
+                            <li><a href="anexos/Anexo 15. Desarrollo de plantas de vías de trazado no lineal en Torres de Limatambo.pdf" target="_blank" rel="noopener noreferrer">Anexo 15: Desarrollo de plantas de vías de trazado no lineal en Torres de Limatambo.</a></li>
+                        </ul>
+                    </div>
+                </details>
             </div>
             
             <div id="search-box">
-                <input type="search" id="buscador-rgep" placeholder="🔍 Buscar parques, plazas o vías..." autocomplete="off" aria-label="Buscar parques, plazas o vías" aria-controls="lista-resultados">
+                <input type="search" id="buscador-rgep" placeholder="🔍 Buscar parques, EPI o vías..." autocomplete="off" aria-label="Buscar parques, espacios públicos integrados o vías" aria-controls="lista-resultados">
                 <div id="lista-resultados" role="listbox"></div>
             </div>
 
@@ -43,12 +67,19 @@
 
         <div id="map"></div>
 
-        <button id="btn-streetview" type="button" aria-label="Abrir Street View" aria-pressed="false" title="Street View: activa y selecciona un punto del mapa">
-            <img src="images/pegman.png" alt="">
-        </button>
+        <div id="map-utility-controls" aria-label="Controles auxiliares del mapa">
+            <button id="btn-north" type="button" title="Orientar al norte" aria-label="Orientar el mapa al norte">
+                <i class="fas fa-location-arrow" id="compass-icon"></i>
+            </button>
+            <button id="btn-info-title" type="button" title="Mostrar información del visor" aria-label="Mostrar información del visor" aria-expanded="false" aria-controls="header-box">i</button>
+            <div id="info-title-hint" role="tooltip" aria-hidden="true">Clic para ver anexos</div>
+            <button id="btn-streetview" type="button" aria-label="Abrir Street View" aria-pressed="false" title="Street View: activa y selecciona un punto del mapa">
+                <img src="images/pegman.png" alt="">
+            </button>
+        </div>
         <img id="streetview-drag-ghost" src="images/pegman.png" alt="" aria-hidden="true">
         
-        <button id="btn-abrir-panel" type="button" title="Abrir panel de capas" aria-label="Abrir panel de capas"><i class="fas fa-layer-group"></i></button>
+        <button id="btn-abrir-panel" type="button" title="Abrir menú de capas" aria-label="Abrir menú de capas"><i class="fas fa-bars"></i></button>
 
         <div id="welcome-modal">
             <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
@@ -56,12 +87,12 @@
                 <img src="images/logo-san-borja.jpg" alt="Logo San Borja">
                 <p class="modal-municipality">Municipalidad de San Borja</p>
                 <h2 id="welcome-title">Visor del Reglamento de Espacios Públicos</h2>
-                <p class="modal-intro">Consulta de forma interactiva la información normativa de los parques, plazas y vías del distrito de San Borja.</p>
+                <p class="modal-intro">Consulta de forma interactiva la información normativa de parques, espacios públicos integrados y vías del distrito de San Borja.</p>
 
                 <section class="modal-guide" aria-labelledby="guide-title">
                     <h3 id="guide-title">¿Cómo usar el visor?</h3>
                     <ul>
-                        <li>Busca el nombre de un parque, plaza o vía para ubicarlo rápidamente.</li>
+                        <li>Busca el nombre de un parque, espacio integrado o vía para ubicarlo rápidamente.</li>
                         <li>Selecciona un elemento del mapa para consultar su ficha técnica.</li>
                         <li>Activa las capas y ajusta la transparencia satelital desde la leyenda.</li>
                     </ul>
@@ -91,7 +122,7 @@
                     </div>
                     <div class="capa-item sub-item">
                         <input type="checkbox" id="chk-vial-prin" checked>
-                        <label for="chk-vial-prin">Vías Principales / Preferenciales</label>
+                        <label for="chk-vial-prin">Vías Locales Preferenciales</label>
                     </div>
                     <div class="capa-item sub-item">
                         <input type="checkbox" id="chk-vial-sec" checked>
@@ -102,10 +133,30 @@
                         <input type="checkbox" id="chk-parques" checked>
                         <label for="chk-parques">Parques y Plazas (Módulos)</label>
                     </div>
+
+                    <div class="capa-item capa-item--separated">
+                        <input type="checkbox" id="chk-epi-lt" checked>
+                        <label for="chk-epi-lt">EPI Limatambo</label>
+                    </div>
+
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-epi-tsb" checked>
+                        <label for="chk-epi-tsb">EPI Torres de San Borja</label>
+                    </div>
+
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-servidumbres" checked>
+                        <label for="chk-servidumbres">Servidumbres de paso</label>
+                    </div>
                     
                     <div class="capa-item">
                         <input type="checkbox" id="chk-manzanas" checked>
                         <label for="chk-manzanas">Manzanas Urbanas</label>
+                    </div>
+
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-manzanas-lt" checked>
+                        <label for="chk-manzanas-lt">Manzanas de Limatambo</label>
                     </div>
                 </div>
 
@@ -118,9 +169,13 @@
 
         <script src="https://cdn.jsdelivr.net/npm/ol@v7.3.0/dist/ol.js"></script>
         <script src="layers/manzanas_0.js"></script>
-        <script src="layers/parques_2.js"></script>
-        <script src="layers/parques_data.js"></script>
-        <script src="layers/red_vial_3.js"></script>
+        <script src="layers/EPI_LT_0.js"></script>
+        <script src="layers/EPI_TSB_1.js"></script>
+        <script src="layers/Manzanas_Limatambo_2.js"></script>
+        <script src="layers/Servidumbredepaso_EPI_LT_3.js"></script>
+        <script src="layers/red_vial_4.js"></script>
+        <script src="layers/ParquesOf_5.js"></script>
+        <script src="layers/Secciones_Viales_3_6.js"></script>
 
         <script src="assets/js/app.js"></script>
         <script src="assets/js/streetview.js"></script>
