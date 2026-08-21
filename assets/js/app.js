@@ -1,5 +1,6 @@
 var headerInfoTimer = null;
 var infoHintTimer = null;
+var cerrandoAnexosPorFicha = false;
 
 function mostrarAyudaInfoTitulo(duracion) {
     var hint = document.getElementById('info-title-hint');
@@ -17,6 +18,26 @@ function ocultarInfoTitulo() {
     var anexos = document.getElementById('anexos-detalle');
     if (anexos && anexos.open) return;
     if (header) {
+        header.classList.add('info-hidden');
+        header.setAttribute('aria-hidden', 'true');
+    }
+    if (button) button.setAttribute('aria-expanded', 'false');
+}
+
+function despejarAnexosParaFicha() {
+    var header = document.getElementById('header-box');
+    var button = document.getElementById('btn-info-title');
+    var anexos = document.getElementById('anexos-detalle');
+
+    if (headerInfoTimer) window.clearTimeout(headerInfoTimer);
+    if (anexos && anexos.open) {
+        cerrandoAnexosPorFicha = true;
+        anexos.open = false;
+        window.setTimeout(function () { cerrandoAnexosPorFicha = false; }, 120);
+    }
+
+    if (header) {
+        header.classList.remove('anexos-open');
         header.classList.add('info-hidden');
         header.setAttribute('aria-hidden', 'true');
     }
@@ -59,6 +80,11 @@ document.getElementById('anexos-detalle').addEventListener('toggle', function ()
     var header = document.getElementById('header-box');
     header.classList.toggle('anexos-open', this.open);
     if (headerInfoTimer) window.clearTimeout(headerInfoTimer);
+    if (cerrandoAnexosPorFicha && !this.open) {
+        cerrandoAnexosPorFicha = false;
+        ocultarInfoTitulo();
+        return;
+    }
     if (this.open) {
         mostrarInfoTitulo();
     } else {
@@ -106,6 +132,37 @@ var styleManzanasLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ 
 var styleEpiLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#047857', width: 2 }), fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.2)' }) });
 var styleEpiTorres = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#0f766e', width: 2 }), fill: new ol.style.Fill({ color: 'rgba(45, 212, 191, 0.22)' }) });
 var styleServidumbre = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#a16207', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(251, 191, 36, 0.3)' }) });
+var styleUrbJuan = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#be123c', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(232, 113, 141, 0.35)' }) });
+var styleSurcoZonaReglamentada = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#dc2626', width: 2, lineDash: [8, 5] }), fill: new ol.style.Fill({ color: 'rgba(220, 38, 38, 0.08)' }) });
+var styleSurcoFajaMarginal = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#334155', width: 1.6, lineDash: [3, 3] }), fill: new ol.style.Fill({ color: 'rgba(100, 116, 139, 0.16)' }) });
+var styleSurcoUsoRestringido = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#65a30d', width: 1.4 }), fill: new ol.style.Fill({ color: 'rgba(101, 163, 13, 0.28)' }) });
+
+var styleRioSurcoFn = function (feature) {
+    if (!filtroActivo('chk-canal-surco')) return null;
+    var situacion = normalizarTextoFiltro(feature.get('situación') || feature.get('situacion') || feature.get('TIPO'));
+    var descubierta = situacion.includes('descubierta');
+    var cubierta = situacion.includes('cubierta') && !descubierta;
+    if (cubierta && !filtroActivo('chk-surco-zona-cubierta')) return null;
+    if (descubierta && !filtroActivo('chk-surco-zona-descubierta')) return null;
+    return new ol.style.Style({
+        stroke: new ol.style.Stroke({
+            color: cubierta ? '#2563eb' : '#0891b2',
+            width: cubierta ? 3 : 2.4,
+            lineDash: cubierta ? null : [8, 5],
+            lineCap: 'round',
+            lineJoin: 'round'
+        })
+    });
+};
+
+function normalizarTextoFiltro(valor) {
+    return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function filtroActivo(id) {
+    var input = document.getElementById(id);
+    return !input || input.checked;
+}
 
 var styleParquesFn = function (feature, resolution) {
     var styles = [new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#10b981', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.25)' }) })];
@@ -120,15 +177,36 @@ var styleParquesFn = function (feature, resolution) {
 };
 
 var styleRedVialFn = function (feature, resolution) {
-    var isPrin = document.getElementById('chk-vial-prin').checked;
-    var isSec = document.getElementById('chk-vial-sec').checked;
-
-    var clasif = String(feature.get('CLASIFIC') || feature.get('CLASIFICA') || feature.get('NIVEL') || '').toLowerCase();
+    var competencia = normalizarTextoFiltro(feature.get('COMPETENCI'));
+    var clasif = normalizarTextoFiltro(feature.get('CLASIFIC') || feature.get('CLASIFICA') || feature.get('NIVEL'));
+    var subclasif = normalizarTextoFiltro(feature.get('SUBCLASIFI'));
+    var categoria = normalizarTextoFiltro(feature.get('CATEGORÍA') || feature.get('CATEGORIA'));
+    var esMetropolitana = competencia.includes('metropolitana') || clasif.includes('metropolitana');
     var esPrincipal = clasif.includes('principal') || clasif.includes('preferencial') || clasif.includes('arterial');
-    var esMetropolitana = clasif.includes('metropolitana');
+    var esSecundaria = clasif.includes('secundaria');
 
-    if (esPrincipal && !isPrin) return null;
-    if (!esPrincipal && !esMetropolitana && !isSec) return null;
+    if (esMetropolitana) {
+        if (!filtroActivo('chk-vial-met')) return null;
+        if (subclasif.includes('expresa') && !filtroActivo('chk-vial-expresa')) return null;
+        if (subclasif.includes('arterial') && !filtroActivo('chk-vial-arterial')) return null;
+        if (subclasif.includes('colectora') && !filtroActivo('chk-vial-colectora')) return null;
+    } else {
+        if (!filtroActivo('chk-vial-local')) return null;
+
+        if (esPrincipal) {
+            if (!filtroActivo('chk-vial-prin')) return null;
+            if (categoria.includes('avenida') && !filtroActivo('chk-pref-avenida')) return null;
+            if (categoria.includes('calle') && !filtroActivo('chk-pref-calle')) return null;
+            if (categoria.includes('jiron') && !filtroActivo('chk-pref-jiron')) return null;
+            if (categoria.includes('pasaje') && !filtroActivo('chk-pref-pasaje')) return null;
+        } else if (esSecundaria) {
+            if (!filtroActivo('chk-vial-sec')) return null;
+            if (subclasif.includes('transito') && !filtroActivo('chk-sec-transito')) return null;
+            if (subclasif.includes('restriccion') && !filtroActivo('chk-sec-restriccion')) return null;
+            if (categoria.includes('pasaje') && !filtroActivo('chk-sec-pasaje')) return null;
+            if (categoria.includes('alameda') && !filtroActivo('chk-sec-alameda')) return null;
+        }
+    }
 
     var styles = [new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#334155', width: 2.5, lineCap: 'round' }) })];
 
@@ -160,6 +238,11 @@ var vectorManzanasLimatambo = new ol.layer.Vector({ source: new ol.source.Vector
 var vectorEpiLimatambo = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_EPI_LT_0 !== 'undefined' ? crearFeatures(json_EPI_LT_0, 'epi') : [] }), style: styleEpiLimatambo, zIndex: 11 });
 var vectorEpiTorres = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_EPI_TSB_1 !== 'undefined' ? crearFeatures(json_EPI_TSB_1, 'epi') : [] }), style: styleEpiTorres, zIndex: 11 });
 var vectorServidumbres = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Servidumbredepaso_EPI_LT_3 !== 'undefined' ? crearFeatures(json_Servidumbredepaso_EPI_LT_3, 'servidumbre') : [] }), style: styleServidumbre, zIndex: 11 });
+var vectorUrbJuan = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Polgonopista_0 !== 'undefined' ? crearFeatures(json_Polgonopista_0, 'urb-juan') : [] }), style: styleUrbJuan, zIndex: 11 });
+var vectorSurcoUsoRestringido = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Zonadeusosrestringidos_1 !== 'undefined' ? crearFeatures(json_Zonadeusosrestringidos_1, 'surco-uso-restringido') : [] }), style: styleSurcoUsoRestringido, zIndex: 9 });
+var vectorSurcoFajaMarginal = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Fajamarginal_0 !== 'undefined' ? crearFeatures(json_Fajamarginal_0, 'surco-faja') : [] }), style: styleSurcoFajaMarginal, zIndex: 9 });
+var vectorSurcoZonaReglamentada = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Zonareglamentada_2 !== 'undefined' ? crearFeatures(json_Zonareglamentada_2, 'surco-zona-reglamentada') : [] }), style: styleSurcoZonaReglamentada, zIndex: 10 });
+var vectorRioSurco = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_LneaderoSurco_3 !== 'undefined' ? crearFeatures(json_LneaderoSurco_3, 'rio-surco') : [] }), style: styleRioSurcoFn, zIndex: 15 });
 var vectorParques = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 12 });
 var vectorRedVial = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? crearFeatures(json_red_vial_4, 'via') : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
 
@@ -168,7 +251,7 @@ var layerHighlight = new ol.layer.Vector({ source: sourceHighlight, style: style
 
 var map = new ol.Map({
     target: 'map', renderer: ['webgl', 'canvas'],
-    layers: [googleSat, vectorManzanas, vectorManzanasLimatambo, vectorEpiLimatambo, vectorEpiTorres, vectorServidumbres, vectorParques, vectorRedVial, layerHighlight],
+    layers: [googleSat, vectorSurcoUsoRestringido, vectorSurcoFajaMarginal, vectorSurcoZonaReglamentada, vectorManzanas, vectorManzanasLimatambo, vectorEpiLimatambo, vectorEpiTorres, vectorServidumbres, vectorUrbJuan, vectorParques, vectorRedVial, vectorRioSurco, layerHighlight],
     view: new ol.View({ center: ol.proj.fromLonLat([-76.9933, -12.0951]), zoom: 14, minZoom: 13, maxZoom: 22 }),
     controls: [new ol.control.Zoom(), new ol.control.ScaleLine({ units: 'metric' })]
 });
@@ -181,20 +264,110 @@ northBtn.onclick = function () {
 };
 map.getView().on('change:rotation', function () { document.getElementById('compass-icon').style.transform = `rotate(${map.getView().getRotation()}rad)`; });
 
-// Eventos de Capas
-document.getElementById('chk-redvial').onchange = e => {
-    vectorRedVial.setVisible(e.target.checked);
-    document.getElementById('chk-vial-prin').disabled = !e.target.checked;
-    document.getElementById('chk-vial-sec').disabled = !e.target.checked;
-};
-document.getElementById('chk-vial-prin').onchange = () => vectorRedVial.changed();
-document.getElementById('chk-vial-sec').onchange = () => vectorRedVial.changed();
+function actualizarEstadoLeyendaVial() {
+    var metActiva = filtroActivo('chk-vial-met');
+    var localActiva = filtroActivo('chk-vial-local');
+    var prefActiva = localActiva && filtroActivo('chk-vial-prin');
+    var secActiva = localActiva && filtroActivo('chk-vial-sec');
+    var grupos = {
+        'chk-vial-expresa': metActiva,
+        'chk-vial-arterial': metActiva,
+        'chk-vial-colectora': metActiva,
+        'chk-vial-prin': localActiva,
+        'chk-pref-avenida': prefActiva,
+        'chk-pref-calle': prefActiva,
+        'chk-pref-jiron': prefActiva,
+        'chk-pref-pasaje': prefActiva,
+        'chk-vial-sec': localActiva,
+        'chk-sec-transito': secActiva,
+        'chk-sec-restriccion': secActiva,
+        'chk-sec-pasaje': secActiva,
+        'chk-sec-alameda': secActiva
+    };
+
+    Object.keys(grupos).forEach(function (id) {
+        var input = document.getElementById(id);
+        if (input) input.disabled = !grupos[id];
+    });
+}
+
+function actualizarEstadoCanalSurco() {
+    var canalActivo = filtroActivo('chk-canal-surco');
+    [
+        'chk-surco-zona-reglamentada',
+        'chk-surco-faja-marginal',
+        'chk-surco-usos-restringidos',
+        'chk-surco-zona-cubierta',
+        'chk-surco-zona-descubierta'
+    ].forEach(function (id) {
+        var input = document.getElementById(id);
+        if (input) input.disabled = !canalActivo;
+    });
+
+    vectorSurcoZonaReglamentada.setVisible(canalActivo && filtroActivo('chk-surco-zona-reglamentada'));
+    vectorSurcoFajaMarginal.setVisible(canalActivo && filtroActivo('chk-surco-faja-marginal'));
+    vectorSurcoUsoRestringido.setVisible(canalActivo && filtroActivo('chk-surco-usos-restringidos'));
+    vectorRioSurco.changed();
+}
+
+document.querySelectorAll('.legend-branch summary input[type="checkbox"]').forEach(function (input) {
+    input.addEventListener('click', function (event) {
+        event.stopPropagation();
+    });
+});
+
+document.querySelectorAll('.legend-title[data-toggle-desc]').forEach(function (title) {
+    title.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var definition = document.getElementById(title.getAttribute('data-toggle-desc'));
+        if (definition) definition.classList.toggle('is-visible');
+    });
+});
+
+[
+    'chk-vial-met',
+    'chk-vial-expresa',
+    'chk-vial-arterial',
+    'chk-vial-colectora',
+    'chk-vial-local',
+    'chk-vial-prin',
+    'chk-pref-avenida',
+    'chk-pref-calle',
+    'chk-pref-jiron',
+    'chk-pref-pasaje',
+    'chk-vial-sec',
+    'chk-sec-transito',
+    'chk-sec-restriccion',
+    'chk-sec-pasaje',
+    'chk-sec-alameda'
+].forEach(function (id) {
+    var input = document.getElementById(id);
+    if (input) input.onchange = function () {
+        actualizarEstadoLeyendaVial();
+        vectorRedVial.changed();
+    };
+});
+actualizarEstadoLeyendaVial();
 document.getElementById('chk-parques').onchange = e => vectorParques.setVisible(e.target.checked);
 document.getElementById('chk-manzanas').onchange = e => vectorManzanas.setVisible(e.target.checked);
 document.getElementById('chk-manzanas-lt').onchange = e => vectorManzanasLimatambo.setVisible(e.target.checked);
 document.getElementById('chk-epi-lt').onchange = e => vectorEpiLimatambo.setVisible(e.target.checked);
 document.getElementById('chk-epi-tsb').onchange = e => vectorEpiTorres.setVisible(e.target.checked);
 document.getElementById('chk-servidumbres').onchange = e => vectorServidumbres.setVisible(e.target.checked);
+document.getElementById('chk-urb-juan').onchange = e => vectorUrbJuan.setVisible(e.target.checked);
+[
+    'chk-canal-surco',
+    'chk-surco-zona-reglamentada',
+    'chk-surco-faja-marginal',
+    'chk-surco-usos-restringidos',
+    'chk-surco-zona-cubierta',
+    'chk-surco-zona-descubierta'
+].forEach(function (id) {
+    var input = document.getElementById(id);
+    if (input) input.onchange = actualizarEstadoCanalSurco;
+});
+actualizarEstadoCanalSurco();
 document.getElementById('sat-opacity').oninput = e => googleSat.setOpacity(parseFloat(e.target.value));
 
 // ==========================================
@@ -237,6 +410,8 @@ function construirStreetView(coord) {
 
 function mostrarFicha(feature, coordinate) {
     if (!feature || feature.get('__tipo') === 'manzana') { cerrarFicha(); return; }
+
+    despejarAnexosParaFicha();
 
     var p = feature.getProperties();
     var tipo = feature.get('__tipo');
@@ -387,6 +562,24 @@ function mostrarFicha(feature, coordinate) {
     } else if (tipo === 'servidumbre') {
         title.innerHTML = '<i class="fas fa-route"></i> Servidumbre de paso';
         finalHtml += '<p class="feature-description">Área destinada a servidumbre de paso dentro del espacio público integrado.</p>';
+    } else if (tipo === 'urb-juan') {
+        title.innerHTML = '<i class="fas fa-draw-polygon"></i> Urb. Juan XXIII';
+        finalHtml += '<p class="feature-description">Polígono urbano incorporado desde la actualización QGIS.</p>';
+    } else if (tipo === 'surco-zona-reglamentada') {
+        title.innerHTML = '<i class="fas fa-landmark"></i> Zona Reglamentada';
+        finalHtml += '<p class="feature-description">Zona Reglamentada como Paisaje Arqueológico R.VM. N.º 041-2019-VMPCIC-MC.</p>';
+    } else if (tipo === 'surco-faja') {
+        title.innerHTML = '<i class="fas fa-water"></i> Faja marginal del Canal de Río Surco';
+        finalHtml += '<p class="feature-description">Faja marginal del Canal de Río Surco según Resolución Jefatural N.º 332-2016-ANA.</p>';
+    } else if (tipo === 'surco-uso-restringido') {
+        title.innerHTML = '<i class="fas fa-leaf"></i> Zona de usos restringidos';
+        finalHtml += '<p class="feature-description">Área asociada al Canal de Río Surco con usos restringidos.</p>';
+    } else if (tipo === 'rio-surco') {
+        var situacionSurco = p['situación'] || p.situacion || p.TIPO || 'Canal de Río Surco';
+        title.innerHTML = '<i class="fas fa-water"></i> Río Surco';
+        agregarFilaValida(htmlRows, 'Situación', situacionSurco);
+        agregarFilaValida(htmlRows, 'Longitud', p.LONGITUD ? Number(p.LONGITUD).toLocaleString('es-PE', { maximumFractionDigits: 2 }) + ' m' : '');
+        finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
     }
 
     content.innerHTML = finalHtml;
