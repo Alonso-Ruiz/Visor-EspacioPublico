@@ -564,8 +564,35 @@ img {
     transform: rotate(180deg);
 }
 
+.legend-group>summary input[type="checkbox"] {
+    transform: scale(1.08);
+    margin: 0 10px 0 0;
+    accent-color: var(--sb-green);
+    cursor: pointer;
+}
+
+.legend-group>summary span {
+    flex: 1;
+}
+
+.legend-group--sectors {
+    border-left-color: #2563eb;
+}
+
+.legend-group--limit {
+    border-left-color: #111827;
+}
+
 .legend-group--teal {
     border-left-color: #0f766e;
+}
+
+.legend-group--atu {
+    border-left-color: #8b5cf6;
+}
+
+.legend-group--green {
+    border-left-color: #65a30d;
 }
 
 .legend-group--cyan {
@@ -578,6 +605,10 @@ img {
 
 .legend-group--natural {
     border-left-color: #65a30d;
+}
+
+.legend-group--juan {
+    border-left-color: #e8718d;
 }
 
 .legend-description {
@@ -675,7 +706,8 @@ img {
 }
 
 .legend-branch--metro,
-.legend-branch--surco {
+.legend-branch--surco,
+.legend-branch--juan {
     overflow: hidden;
     border: 1px solid var(--sb-border);
     border-left: 4px solid #cbd5e1;
@@ -684,7 +716,8 @@ img {
 }
 
 .legend-branch--metro>summary,
-.legend-branch--surco>summary {
+.legend-branch--surco>summary,
+.legend-branch--juan>summary {
     border: 0;
     border-bottom: 1px solid var(--sb-border);
     border-left: 0;
@@ -692,22 +725,29 @@ img {
 }
 
 .legend-branch--metro:not([open])>summary,
-.legend-branch--surco:not([open])>summary {
+.legend-branch--surco:not([open])>summary,
+.legend-branch--juan:not([open])>summary {
     border-bottom: 0;
 }
 
 .legend-branch--metro .capa-item.sub-item--deep,
-.legend-branch--surco .capa-item.sub-item--deep {
+.legend-branch--surco .capa-item.sub-item--deep,
+.legend-branch--juan .capa-item.sub-item--deep {
     margin-left: 10px;
     margin-right: 10px;
 }
 
 .legend-branch--metro .capa-item.sub-item--deep:last-child,
-.legend-branch--surco .capa-item.sub-item--deep:last-child {
+.legend-branch--surco .capa-item.sub-item--deep:last-child,
+.legend-branch--juan .capa-item.sub-item--deep:last-child {
     margin-bottom: 10px;
 }
 
 .legend-branch--juan>summary {
+    border-left-color: #e8718d;
+}
+
+.legend-branch--juan {
     border-left-color: #e8718d;
 }
 

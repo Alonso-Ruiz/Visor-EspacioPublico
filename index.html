@@ -100,7 +100,7 @@
                 aria-label="Cerrar bienvenida"><i class="fas fa-times"></i></button>
             <img src="images/logo-san-borja.jpg" alt="Logo San Borja">
             <p class="modal-municipality">Municipalidad de San Borja</p>
-            <h2 id="welcome-title">Visor del Reglamento de Espacios Públicos</h2>
+            <h2 id="welcome-title">VISOR DEL DECRETO DE ALCALDÍA XXXX.2026-MSB-A QUE APRUEBA EL REGLAMENTO DE ESPACIOS PÚBLICOS DEL DISTRITO DE SAN BORJA</h2>
             <p class="modal-intro">Consulta de forma interactiva la información normativa de parques, espacios públicos
                 integrados y vías del distrito de San Borja.</p>
 
@@ -132,9 +132,96 @@
             <div class="control-seccion">
                 <div class="seccion-titulo"><i class="fas fa-layer-group"></i> Capas Activas</div>
 
+                <details class="legend-group legend-group--sectors" open>
+                    <summary>
+                        <input type="checkbox" id="chk-sectores-general" checked>
+                        <span>Sectores</span>
+                    </summary>
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-sectores" checked>
+                        <label for="chk-sectores">Sectores</label>
+                    </div>
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-subsectores" checked>
+                        <label for="chk-subsectores">Subsectores</label>
+                    </div>
+                </details>
+
+                <details class="legend-group legend-group--limit" open>
+                    <summary>
+                        <input type="checkbox" id="chk-limite-distrital" checked>
+                        <span>Límite Distrital</span>
+                    </summary>
+                </details>
+
+                <details class="legend-group legend-group--atu" open>
+                    <summary>
+                        <input type="checkbox" id="chk-atu" checked>
+                        <span>Áreas de Tratamiento Urbano</span>
+                    </summary>
+                    <div class="legend-subgroup legend-subgroup--child">
+                        <details class="legend-branch legend-branch--nested" open>
+                            <summary>
+                                <input type="checkbox" id="chk-atu-conservacion" checked>
+                                <span>Conservación</span>
+                            </summary>
+                            <div class="legend-pills" aria-label="Áreas de conservación">
+                                <label><input type="checkbox" id="chk-atu-conservacion-1" checked> Conservación 1</label>
+                                <label><input type="checkbox" id="chk-atu-conservacion-2" checked> Conservación 2</label>
+                                <label><input type="checkbox" id="chk-atu-conservacion-3" checked> Conservación 3</label>
+                            </div>
+                        </details>
+                        <details class="legend-branch legend-branch--nested" open>
+                            <summary>
+                                <input type="checkbox" id="chk-atu-consolidacion" checked>
+                                <span>Consolidación</span>
+                            </summary>
+                            <div class="legend-pills" aria-label="Áreas de consolidación">
+                                <label><input type="checkbox" id="chk-atu-consolidacion-1" checked> Consolidación 1</label>
+                                <label><input type="checkbox" id="chk-atu-consolidacion-2" checked> Consolidación 2</label>
+                                <label><input type="checkbox" id="chk-atu-consolidacion-3" checked> Consolidación 3</label>
+                            </div>
+                        </details>
+                        <details class="legend-branch legend-branch--nested" open>
+                            <summary>
+                                <input type="checkbox" id="chk-atu-generacion" checked>
+                                <span>Generación</span>
+                            </summary>
+                            <div class="legend-pills" aria-label="Áreas de generación">
+                                <label><input type="checkbox" id="chk-atu-generacion-1" checked> Generación 1</label>
+                                <label><input type="checkbox" id="chk-atu-generacion-2" checked> Generación 2</label>
+                            </div>
+                        </details>
+                        <details class="legend-branch legend-branch--nested" open>
+                            <summary>
+                                <input type="checkbox" id="chk-atu-dinamizacion" checked>
+                                <span>Dinamización</span>
+                            </summary>
+                            <div class="legend-pills" aria-label="Áreas de dinamización">
+                                <label><input type="checkbox" id="chk-atu-dinamizacion-1" checked> Dinamización 1</label>
+                                <label><input type="checkbox" id="chk-atu-dinamizacion-2" checked> Dinamización 2</label>
+                            </div>
+                        </details>
+                        <details class="legend-branch legend-branch--nested" open>
+                            <summary>
+                                <input type="checkbox" id="chk-atu-renovacion" checked>
+                                <span>Renovación</span>
+                            </summary>
+                            <div class="legend-pills" aria-label="Áreas de renovación">
+                                <label><input type="checkbox" id="chk-atu-renovacion-1" checked> Renovación 1</label>
+                                <label><input type="checkbox" id="chk-atu-renovacion-2" checked> Renovación 2</label>
+                                <label><input type="checkbox" id="chk-atu-renovacion-3" checked> Renovación 3</label>
+                            </div>
+                        </details>
+                    </div>
+                </details>
+
                 <details class="legend-group legend-group--green" open>
-                    <summary><span class="legend-title" data-toggle-desc="def-recreacion">Espacios públicos destinados a
-                            la recreación</span></summary>
+                    <summary>
+                        <input type="checkbox" id="chk-recreacion-general" checked>
+                        <span class="legend-title" data-toggle-desc="def-recreacion">Espacios públicos destinados a
+                            la recreación</span>
+                    </summary>
                     <p class="legend-description legend-definition" id="def-recreacion">Espacios públicos destinados a
                         la recreación pública: plazas, plazuelas, anfiteatros, losas deportivas, parques, jardines,
                         alamedas, malecones y similares.</p>
@@ -142,39 +229,18 @@
                         <input type="checkbox" id="chk-parques" checked>
                         <label for="chk-parques">Parques</label>
                     </div>
-                </details>
-
-                <details class="legend-group legend-group--teal" open>
-                    <summary>Torres de San Borja</summary>
                     <div class="capa-item">
-                        <input type="checkbox" id="chk-epi-tsb" checked>
-                        <label for="chk-epi-tsb">Espacios Públicos Integrados</label>
-                    </div>
-                    <div class="capa-item">
-                        <input type="checkbox" id="chk-manzanas" checked>
-                        <label for="chk-manzanas">Manzanas</label>
-                    </div>
-                </details>
-
-                <details class="legend-group legend-group--cyan" open>
-                    <summary>Torres de Limatambo</summary>
-                    <div class="capa-item">
-                        <input type="checkbox" id="chk-epi-lt" checked>
-                        <label for="chk-epi-lt">Espacios Públicos Integrados</label>
-                    </div>
-                    <div class="capa-item">
-                        <input type="checkbox" id="chk-servidumbres" checked>
-                        <label for="chk-servidumbres">Servidumbre de paso</label>
-                    </div>
-                    <div class="capa-item">
-                        <input type="checkbox" id="chk-manzanas-lt" checked>
-                        <label for="chk-manzanas-lt">Manzanas</label>
+                        <input type="checkbox" id="chk-jardines-aislamiento" checked>
+                        <label for="chk-jardines-aislamiento">Jardines de Aislamiento</label>
                     </div>
                 </details>
 
                 <details class="legend-group legend-group--navy" open>
-                    <summary><span class="legend-title" data-toggle-desc="def-movilidad">Espacios públicos destinados a
-                            la movilidad urbana</span></summary>
+                    <summary>
+                        <input type="checkbox" id="chk-movilidad-general" checked>
+                        <span class="legend-title" data-toggle-desc="def-movilidad">Espacios públicos destinados a
+                            la movilidad urbana</span>
+                    </summary>
                     <p class="legend-description legend-definition" id="def-movilidad">Vías peatonales, vías para
                         vehículos no motorizados y vías para vehículos motorizados con sus correspondientes zonas de
                         protección, de ser el caso.</p>
@@ -201,13 +267,6 @@
                             <input type="checkbox" id="chk-vial-colectora" checked>
                             <label for="chk-vial-colectora">Colectora</label>
                         </div>
-                    </details>
-
-                    <details class="legend-branch legend-branch--juan" open>
-                        <summary>
-                            <input type="checkbox" id="chk-urb-juan" checked>
-                            <span>Urb. Juan XXIII</span>
-                        </summary>
                     </details>
 
                     <details class="legend-branch legend-branch--local" open>
@@ -259,8 +318,11 @@
                 </details>
 
                 <details class="legend-group legend-group--natural" open>
-                    <summary><span class="legend-title" data-toggle-desc="def-natural">Espacios Públicos sobre áreas
-                            naturales</span></summary>
+                    <summary>
+                        <input type="checkbox" id="chk-natural-general" checked>
+                        <span class="legend-title" data-toggle-desc="def-natural">Espacios Públicos sobre áreas
+                            naturales</span>
+                    </summary>
                     <p class="legend-description legend-definition" id="def-natural">Zona de playa protegida, áreas
                         naturales protegida, ecosistemas frágiles, fajas marginales y otros similares, reguladas por su
                         normativa especial.</p>
@@ -296,6 +358,59 @@
                         </div>
                     </details>
                 </details>
+
+                <details class="legend-group legend-group--teal" open>
+                    <summary>
+                        <input type="checkbox" id="chk-tsb-general" checked>
+                        <span>Torres de San Borja</span>
+                    </summary>
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-epi-tsb" checked>
+                        <label for="chk-epi-tsb">Espacios Públicos Integrados</label>
+                    </div>
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-manzanas" checked>
+                        <label for="chk-manzanas">Manzanas</label>
+                    </div>
+                </details>
+
+                <details class="legend-group legend-group--cyan" open>
+                    <summary>
+                        <input type="checkbox" id="chk-limatambo-general" checked>
+                        <span>Torres de Limatambo</span>
+                    </summary>
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-epi-lt" checked>
+                        <label for="chk-epi-lt">Espacios Públicos Integrados</label>
+                    </div>
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-servidumbres" checked>
+                        <label for="chk-servidumbres">Servidumbre de paso</label>
+                    </div>
+                    <div class="capa-item">
+                        <input type="checkbox" id="chk-manzanas-lt" checked>
+                        <label for="chk-manzanas-lt">Manzanas</label>
+                    </div>
+                </details>
+
+
+                <details class="legend-group legend-group--juan" open>
+                    <summary>
+                        <input type="checkbox" id="chk-urb-juan" checked>
+                        <span>Urb. Juan XXIII</span>
+                    </summary>
+                    <div class="legend-subgroup legend-subgroup--child">
+                        <div class="capa-item sub-item sub-item--deep">
+                            <input type="checkbox" id="chk-juan-alamedas" checked>
+                            <label for="chk-juan-alamedas">Alamedas</label>
+                        </div>
+                        <div class="capa-item sub-item sub-item--deep">
+                            <input type="checkbox" id="chk-juan-pasajes-calles" checked>
+                            <label for="chk-juan-pasajes-calles">Pasajes/Calles</label>
+                        </div>
+                    </div>
+                </details>
+
             </div>
 
             <div class="control-seccion">
@@ -319,6 +434,13 @@
     <script src="layers/Zonadeusosrestringidos_1.js"></script>
     <script src="layers/Zonareglamentada_2.js"></script>
     <script src="layers/LneaderoSurco_3.js"></script>
+    <script src="layers/limite_distrital_0.js"></script>
+    <script src="layers/subsectores_1.js"></script>
+    <script src="layers/Sectores_2.js"></script>
+    <script src="layers/TU_detallado_0.js"></script>
+    <script src="layers/Jardndeaislamiento_1.js"></script>
+    <script src="layers/ALAMEDASDESUBMANZANAS_2.js"></script>
+    <script src="layers/BORDEDESUBMANZANAYREALIBRE_3.js"></script>
 
     <script src="assets/js/app.js"></script>
     <script src="assets/js/streetview.js"></script>
