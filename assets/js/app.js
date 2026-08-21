@@ -1,6 +1,7 @@
 var headerInfoTimer = null;
 var infoHintTimer = null;
 var cerrandoAnexosPorFicha = false;
+var leyendaResaltadaTimer = null;
 
 function mostrarAyudaInfoTitulo(duracion) {
     var hint = document.getElementById('info-title-hint');
@@ -97,13 +98,149 @@ var btnAbrir = document.getElementById('btn-abrir-panel');
 document.getElementById('btn-cerrar-panel').onclick = function () { panelDer.classList.add('oculto'); btnAbrir.style.display = 'flex'; };
 btnAbrir.onclick = function () { panelDer.classList.remove('oculto'); btnAbrir.style.display = 'none'; };
 
+function featurePerteneceALayer(feature, layer) {
+    return !!(feature && layer && layer.getSource && layer.getSource().hasFeature(feature));
+}
+
+function idLeyendaParaVia(feature) {
+    var competencia = normalizarTextoFiltro(feature.get('COMPETENCI'));
+    var clasif = normalizarTextoFiltro(feature.get('CLASIFIC') || feature.get('CLASIFICA') || feature.get('NIVEL'));
+    var subclasif = normalizarTextoFiltro(feature.get('SUBCLASIFI'));
+    var categoria = normalizarTextoFiltro(feature.get('CATEGORÍA') || feature.get('CATEGORIA'));
+    var esMetropolitana = competencia.includes('metropolitana') || clasif.includes('metropolitana');
+    var esPrincipal = clasif.includes('principal') || clasif.includes('preferencial') || clasif.includes('arterial');
+    var esSecundaria = clasif.includes('secundaria');
+
+    if (esMetropolitana) {
+        if (subclasif.includes('expresa')) return 'chk-vial-expresa';
+        if (subclasif.includes('arterial')) return 'chk-vial-arterial';
+        if (subclasif.includes('colectora')) return 'chk-vial-colectora';
+        return 'chk-vial-met';
+    }
+
+    if (esPrincipal) {
+        if (categoria.includes('avenida')) return 'chk-pref-avenida';
+        if (categoria.includes('calle')) return 'chk-pref-calle';
+        if (categoria.includes('jiron')) return 'chk-pref-jiron';
+        if (categoria.includes('pasaje')) return 'chk-pref-pasaje';
+        return 'chk-vial-prin';
+    }
+
+    if (esSecundaria) {
+        if (subclasif.includes('transito')) return 'chk-sec-transito';
+        if (subclasif.includes('restriccion')) return 'chk-sec-restriccion';
+        if (categoria.includes('alameda')) return 'chk-sec-alameda';
+        if (categoria.includes('pasaje')) return 'chk-sec-pasaje';
+        return 'chk-vial-sec';
+    }
+
+    return 'chk-vial-local';
+}
+
+function idLeyendaParaAtu(feature) {
+    var tipo = String(feature.get('TRAT_URB2') || '').trim();
+    var config = ATU_STYLE_CONFIG[tipo];
+    return config ? config.id : 'chk-atu';
+}
+
+function idLeyendaParaRioSurco(feature) {
+    var situacion = normalizarTextoFiltro(feature.get('situación') || feature.get('situacion') || feature.get('TIPO'));
+    if (situacion.includes('descubierta')) return 'chk-surco-zona-descubierta';
+    if (situacion.includes('cubierta')) return 'chk-surco-zona-cubierta';
+    return 'chk-canal-surco';
+}
+
+function idLeyendaParaFeature(feature) {
+    var tipo = feature && feature.get('__tipo');
+    if (!tipo) return null;
+
+    if (tipo === 'via') return idLeyendaParaVia(feature);
+    if (tipo === 'parque') return 'chk-parques';
+    if (tipo === 'jardin-aislamiento') return 'chk-jardines-aislamiento';
+    if (tipo === 'atu') return idLeyendaParaAtu(feature);
+    if (tipo === 'sector') return 'chk-sectores';
+    if (tipo === 'subsector') return 'chk-subsectores';
+    if (tipo === 'servidumbre') return 'chk-servidumbres';
+    if (tipo === 'juan-alameda') return 'chk-juan-alamedas';
+    if (tipo === 'juan-pasaje-calle' || tipo === 'urb-juan') return 'chk-juan-pasajes-calles';
+    if (tipo === 'surco-zona-reglamentada') return 'chk-surco-zona-reglamentada';
+    if (tipo === 'surco-faja') return 'chk-surco-faja-marginal';
+    if (tipo === 'surco-uso-restringido') return 'chk-surco-usos-restringidos';
+    if (tipo === 'rio-surco') return idLeyendaParaRioSurco(feature);
+    if (tipo === 'epi') return featurePerteneceALayer(feature, vectorEpiLimatambo) ? 'chk-epi-lt' : 'chk-epi-tsb';
+
+    return null;
+}
+
+function abrirDetallesPadres(elemento) {
+    var detalle = elemento ? elemento.closest('details') : null;
+    while (detalle) {
+        detalle.open = true;
+        detalle = detalle.parentElement ? detalle.parentElement.closest('details') : null;
+    }
+}
+
+function elementoVisualLeyenda(input) {
+    if (!input) return null;
+    return input.closest('.legend-pills label') ||
+        input.closest('.capa-item') ||
+        input.closest('summary') ||
+        input.parentElement;
+}
+
+function resaltarLeyendaParaFeature(feature) {
+    var id = idLeyendaParaFeature(feature);
+    var input = id ? document.getElementById(id) : null;
+    var elemento = elementoVisualLeyenda(input);
+    if (!elemento) return;
+
+    if (panelDer && panelDer.classList.contains('oculto')) {
+        panelDer.classList.remove('oculto');
+        if (btnAbrir) btnAbrir.style.display = 'none';
+    }
+
+    abrirDetallesPadres(elemento);
+
+    if (leyendaResaltadaTimer) window.clearTimeout(leyendaResaltadaTimer);
+    document.querySelectorAll('.legend-focus').forEach(function (actual) {
+        actual.classList.remove('legend-focus');
+    });
+
+    window.setTimeout(function () {
+        elemento.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        elemento.classList.add('legend-focus');
+        leyendaResaltadaTimer = window.setTimeout(function () {
+            elemento.classList.remove('legend-focus');
+        }, 3200);
+    }, 80);
+}
+
 var ficha = document.getElementById('ficha-tecnica');
+var parque3DSeleccionado = null;
+var parque3DCacheArboles = new Map();
+var parque3DEstado = null;
+var parque3DTemplatesPromise = null;
+var PARQUE_3D_MODELOS = {
+    round: 'models/tree_round.glb',
+    column: 'models/tree_column.glb',
+    conifer: 'models/tree_conifer.glb',
+    palm: 'models/tree_palm.glb'
+};
+var PARQUE_3D_LOW_TREE = null;
+
 function cerrarFicha() {
     ficha.style.display = 'none';
     sourceHighlight.clear();
 }
 
 document.getElementById('btn-cerrar-ficha').addEventListener('click', cerrarFicha);
+document.getElementById('park3d-close').addEventListener('click', cerrarParque3D);
+document.getElementById('park3d-modal').addEventListener('click', function (event) {
+    if (event.target.id === 'park3d-modal') cerrarParque3D();
+});
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') cerrarParque3D();
+});
 
 var formatJSON = new ol.format.GeoJSON();
 function leerFeaturesSeguro(jsonData) {
@@ -139,7 +276,9 @@ var styleJuanPasajesCalles = new ol.style.Style({ stroke: new ol.style.Stroke({ 
 var styleLimiteDistrital = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#111827', width: 3, lineDash: [10, 5] }), fill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.01)' }) });
 var styleSurcoZonaReglamentada = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#dc2626', width: 2, lineDash: [8, 5] }), fill: new ol.style.Fill({ color: 'rgba(220, 38, 38, 0.08)' }) });
 var styleSurcoFajaMarginal = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#334155', width: 1.6, lineDash: [3, 3] }), fill: new ol.style.Fill({ color: 'rgba(100, 116, 139, 0.16)' }) });
-var styleSurcoUsoRestringido = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#10b981', width: 1.4 }), fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.25)' }) });
+var styleSurcoUsoRestringido = new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: '#065f46', width: 2, lineDash: [8, 5] })
+});
 
 var ATU_STYLE_CONFIG = {
     'Conservación 1': { id: 'chk-atu-conservacion-1', parent: 'chk-atu-conservacion', color: '81, 210, 21' },
@@ -351,11 +490,56 @@ var map = new ol.Map({
 
 // NORTE Y CENTRADO DE ROTACIÓN
 var northBtn = document.getElementById('btn-north');
+var inclinacionMapaActiva = false;
+var rotandoMapaConBotonDerecho = false;
+var rotacionMouseX = 0;
+var inclinacionVisual = 0;
+
 northBtn.onclick = function () {
     var view = map.getView();
+    inclinacionMapaActiva = false;
+    inclinacionVisual = 0;
+    map.getViewport().style.setProperty('--map-pitch', '0deg');
+    map.getViewport().style.setProperty('--map-pitch-scale', '1');
+    map.getViewport().classList.remove('is-pitched');
     view.animate({ rotation: 0, duration: 500, easing: ol.easing.easeOut });
 };
 map.getView().on('change:rotation', function () { document.getElementById('compass-icon').style.transform = `rotate(${map.getView().getRotation()}rad)`; });
+
+map.getViewport().addEventListener('contextmenu', function (event) {
+    event.preventDefault();
+});
+
+function moverRotacionMapaDerecho(event) {
+    if (!rotandoMapaConBotonDerecho) return;
+    var dx = event.clientX - rotacionMouseX;
+    var dy = event.movementY || 0;
+    rotacionMouseX = event.clientX;
+    map.getView().setRotation(map.getView().getRotation() + dx * 0.004);
+    inclinacionVisual = Math.max(0, Math.min(45, inclinacionVisual + dy * 0.25));
+    var escalaInclinacion = 1 + (inclinacionVisual / 45) * 0.72;
+    map.getViewport().style.setProperty('--map-pitch', inclinacionVisual + 'deg');
+    map.getViewport().style.setProperty('--map-pitch-scale', escalaInclinacion.toFixed(2));
+    map.getViewport().classList.toggle('is-pitched', inclinacionVisual > 1);
+    inclinacionMapaActiva = inclinacionVisual > 1;
+}
+
+map.getViewport().addEventListener('mousedown', function (event) {
+    if (event.button !== 2) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    rotandoMapaConBotonDerecho = true;
+    rotacionMouseX = event.clientX;
+    map.getViewport().style.cursor = 'grabbing';
+    window.addEventListener('mousemove', moverRotacionMapaDerecho);
+}, true);
+
+window.addEventListener('mouseup', function (event) {
+    if (event.button !== 2) return;
+    rotandoMapaConBotonDerecho = false;
+    window.removeEventListener('mousemove', moverRotacionMapaDerecho);
+    map.getViewport().style.cursor = '';
+});
 
 function actualizarEstadoLeyendaVial() {
     var movilidadActiva = filtroActivo('chk-movilidad-general');
@@ -393,8 +577,10 @@ function actualizarEstadoLeyendaVial() {
 function actualizarEstadoCanalSurco() {
     var naturalActivo = filtroActivo('chk-natural-general');
     var canalActivo = naturalActivo && filtroActivo('chk-canal-surco');
+    var canalInput = document.getElementById('chk-canal-surco');
+    if (canalInput) canalInput.disabled = !naturalActivo;
+
     [
-        'chk-canal-surco',
         'chk-surco-zona-reglamentada',
         'chk-surco-faja-marginal',
         'chk-surco-usos-restringidos',
@@ -606,7 +792,10 @@ actualizarEstadoJuan();
     if (input) input.onchange = actualizarEstadoCanalSurco;
 });
 actualizarEstadoCanalSurco();
-document.getElementById('sat-opacity').oninput = e => googleSat.setOpacity(parseFloat(e.target.value));
+document.getElementById('sat-opacity').oninput = function (e) {
+    var opacity = parseFloat(e.target.value);
+    googleSat.setOpacity(opacity);
+};
 
 // ==========================================
 // LÓGICA DE LA FICHA TÉCNICA Y STREET VIEW
@@ -646,6 +835,444 @@ function construirStreetView(coord) {
             </div>`;
 }
 
+function setTextoPark3D(id, valor) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = valor || '—';
+}
+
+function numeroPark3D(valor, fallback) {
+    var n = parseFloat(valor);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function limitarPark3D(valor, min, max) {
+    return Math.min(max, Math.max(min, valor));
+}
+
+function formatoAreaPark3D(valor) {
+    var n = Number(valor);
+    return Number.isFinite(n) ? n.toLocaleString('es-PE', { maximumFractionDigits: 2 }) + ' m²' : '—';
+}
+
+function porcentajePark3D(valor) {
+    var n = numeroSeguro(valor);
+    if (n === null) return '—';
+    return n.toFixed(1).replace('.0', '') + '%';
+}
+
+function promedioPositivoPark3D(a, b) {
+    var valores = [a, b].filter(function (v) { return Number.isFinite(v) && v > 0; });
+    return valores.length ? valores.reduce(function (s, v) { return s + v; }, 0) / valores.length : NaN;
+}
+
+function sumaPositivaPark3D(a, b) {
+    var valores = [a, b].filter(function (v) { return Number.isFinite(v) && v > 0; });
+    return valores.length ? valores.reduce(function (s, v) { return s + v; }, 0) : NaN;
+}
+
+function normalizarPark3D(valor) {
+    return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function clasificarArbolPark3D(propiedades) {
+    var texto = normalizarPark3D((propiedades.NOMBRE_COM || '') + ' ' + (propiedades.NOMBRE_CIE || '') + ' ' + (propiedades.FAMILIA || ''));
+    if (/palmera|dypsis|washingtonia|phoenix|arecaceae|coco|cocos/.test(texto)) return 'palm';
+    if (/pino|pinus|cipres|cupress|araucaria/.test(texto)) return 'conifer';
+    if (/casuarina|eucalipto|eucalyptus|molle|schinus/.test(texto)) return 'column';
+    return 'round';
+}
+
+function anguloSemillaPark3D(propiedades) {
+    var raw = String(propiedades.OBJECTID || propiedades['Nº'] || propiedades.GPS || '1');
+    var hash = 0;
+    for (var i = 0; i < raw.length; i++) hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
+    return (hash % 6283) / 1000;
+}
+
+function obtenerLowTreePark3D() {
+    if (PARQUE_3D_LOW_TREE) return PARQUE_3D_LOW_TREE;
+    PARQUE_3D_LOW_TREE = {
+        trunkGeom: new THREE.CylinderGeometry(.5, .58, 1, 6),
+        canopyGeom: new THREE.IcosahedronGeometry(1, 1),
+        trunkMat: new THREE.MeshStandardMaterial({ color: 0x765642, roughness: 1 }),
+        canopyMat: new THREE.MeshStandardMaterial({ color: 0x527f50, roughness: 1, flatShading: true })
+    };
+    return PARQUE_3D_LOW_TREE;
+}
+
+function crearArbolSimplePark3D(altura, copaEW, copaNS, alturaLibre, dapCm) {
+    var low = obtenerLowTreePark3D();
+    var group = new THREE.Group();
+    var radioTronco = limitarPark3D((Number.isFinite(dapCm) ? dapCm : 25) / 200, .10, .65);
+    var troncoH = limitarPark3D(alturaLibre, 1.0, altura * .72);
+    var trunk = new THREE.Mesh(low.trunkGeom, low.trunkMat);
+    trunk.position.y = troncoH / 2;
+    trunk.scale.set(radioTronco / .5, troncoH, radioTronco / .5);
+    trunk.castShadow = true;
+    var copaH = limitarPark3D(altura - troncoH, 1.4, altura * .72);
+    var canopy = new THREE.Mesh(low.canopyGeom, low.canopyMat);
+    canopy.position.y = troncoH + copaH * .45;
+    canopy.scale.set(copaEW / 2, copaH * .55, copaNS / 2);
+    canopy.castShadow = true;
+    group.add(trunk, canopy);
+    return group;
+}
+
+function cargarModelosArbolesPark3D() {
+    if (parque3DTemplatesPromise) return parque3DTemplatesPromise;
+    parque3DTemplatesPromise = new Promise(function (resolve, reject) {
+        if (!THREE.GLTFLoader) {
+            reject(new Error('GLTFLoader no está disponible.'));
+            return;
+        }
+        var loader = new THREE.GLTFLoader();
+        var entries = Object.entries(PARQUE_3D_MODELOS);
+        Promise.all(entries.map(function (entry) {
+            var key = entry[0], url = entry[1];
+            return new Promise(function (res, rej) {
+                loader.load(url, function (gltf) {
+                    var root = gltf.scene;
+                    root.traverse(function (obj) {
+                        if (obj.isMesh) {
+                            obj.castShadow = true;
+                            obj.receiveShadow = true;
+                            if (obj.geometry) obj.geometry.userData.__sharedGlbAsset = true;
+                            var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                            mats.filter(Boolean).forEach(function (mat) { mat.userData.__sharedGlbAsset = true; });
+                        }
+                    });
+                    var box = new THREE.Box3().setFromObject(root);
+                    var size = box.getSize(new THREE.Vector3());
+                    res([key, { root: root, size: size, box: box }]);
+                }, undefined, rej);
+            });
+        })).then(function (items) {
+            resolve(Object.fromEntries(items));
+        }).catch(function (error) {
+            parque3DTemplatesPromise = null;
+            reject(error);
+        });
+    });
+    return parque3DTemplatesPromise;
+}
+
+function parqueFeatureAGeoJson(feature) {
+    return formatJSON.writeFeatureObject(feature, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
+}
+
+function claveParque3D(feature) {
+    var p = feature.getProperties ? feature.getProperties() : {};
+    return String(p['CÓDIGO'] || p.ID || p.NOMBRE || feature.ol_uid || 'parque');
+}
+
+function bboxGeometriaPark3D(geometry) {
+    var minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+    function recorrer(valor) {
+        if (!Array.isArray(valor)) return;
+        if (valor.length >= 2 && typeof valor[0] === 'number' && typeof valor[1] === 'number') {
+            minLon = Math.min(minLon, valor[0]);
+            maxLon = Math.max(maxLon, valor[0]);
+            minLat = Math.min(minLat, valor[1]);
+            maxLat = Math.max(maxLat, valor[1]);
+        } else {
+            valor.forEach(recorrer);
+        }
+    }
+    recorrer(geometry.coordinates);
+    return { minLon: minLon, minLat: minLat, maxLon: maxLon, maxLat: maxLat };
+}
+
+function puntoEnAnilloPark3D(point, ring) {
+    var x = point[0], y = point[1], inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        var xi = ring[i][0], yi = ring[i][1];
+        var xj = ring[j][0], yj = ring[j][1];
+        var hit = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi);
+        if (hit) inside = !inside;
+    }
+    return inside;
+}
+
+function puntoEnPoligonoPark3D(point, rings) {
+    if (!rings || !rings.length || !puntoEnAnilloPark3D(point, rings[0])) return false;
+    for (var i = 1; i < rings.length; i++) {
+        if (puntoEnAnilloPark3D(point, rings[i])) return false;
+    }
+    return true;
+}
+
+function puntoEnGeometriaPark3D(point, geometry) {
+    if (!geometry) return false;
+    if (geometry.type === 'Polygon') return puntoEnPoligonoPark3D(point, geometry.coordinates);
+    if (geometry.type === 'MultiPolygon') {
+        return geometry.coordinates.some(function (polygon) { return puntoEnPoligonoPark3D(point, polygon); });
+    }
+    return false;
+}
+
+function arbolesParaParque3D(feature) {
+    if (typeof json_rboles_parque_0 === 'undefined') return [];
+    var clave = claveParque3D(feature);
+    if (parque3DCacheArboles.has(clave)) return parque3DCacheArboles.get(clave);
+
+    var geojson = parqueFeatureAGeoJson(feature);
+    var bbox = bboxGeometriaPark3D(geojson.geometry);
+    var arboles = (json_rboles_parque_0.features || []).filter(function (tree) {
+        var c = tree.geometry && tree.geometry.coordinates;
+        if (!c || c.length < 2) return false;
+        if (c[0] < bbox.minLon || c[0] > bbox.maxLon || c[1] < bbox.minLat || c[1] > bbox.maxLat) return false;
+        return puntoEnGeometriaPark3D(c, geojson.geometry);
+    });
+
+    parque3DCacheArboles.set(clave, arboles);
+    return arboles;
+}
+
+function cerrarParque3D() {
+    var modal = document.getElementById('park3d-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    limpiarEscenaParque3D();
+}
+
+function limpiarEscenaParque3D() {
+    if (!parque3DEstado) return;
+    cancelAnimationFrame(parque3DEstado.raf);
+    window.removeEventListener('resize', parque3DEstado.onResize);
+    if (parque3DEstado.controls && parque3DEstado.controls.dispose) parque3DEstado.controls.dispose();
+    parque3DEstado.scene.traverse(function (obj) {
+        var low = PARQUE_3D_LOW_TREE;
+        if (obj.geometry && obj.geometry.dispose && !obj.geometry.userData.__sharedGlbAsset && (!low || (obj.geometry !== low.trunkGeom && obj.geometry !== low.canopyGeom))) obj.geometry.dispose();
+        if (obj.material) {
+            (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(function (mat) {
+                if (mat.dispose && !mat.userData.__sharedGlbAsset && (!low || (mat !== low.trunkMat && mat !== low.canopyMat))) mat.dispose();
+            });
+        }
+    });
+    parque3DEstado.renderer.dispose();
+    if (parque3DEstado.renderer.domElement && parque3DEstado.renderer.domElement.parentNode) {
+        parque3DEstado.renderer.domElement.parentNode.removeChild(parque3DEstado.renderer.domElement);
+    }
+    parque3DEstado = null;
+}
+
+async function construirEscenaParque3D(feature, arboles) {
+    if (typeof THREE === 'undefined') return;
+    limpiarEscenaParque3D();
+
+    var container = document.getElementById('park3d-container');
+    if (!container) return;
+    var width = Math.max(container.clientWidth, 320);
+    var height = Math.max(container.clientHeight, 320);
+    var geojson = parqueFeatureAGeoJson(feature);
+    var bbox = bboxGeometriaPark3D(geojson.geometry);
+    var lon0 = (bbox.minLon + bbox.maxLon) / 2;
+    var lat0 = (bbox.minLat + bbox.maxLat) / 2;
+    var cosLat = Math.cos(lat0 * Math.PI / 180);
+    var toLocal = function (coord) {
+        return {
+            x: (coord[0] - lon0) * 111320 * cosLat,
+            z: -(coord[1] - lat0) * 110540
+        };
+    };
+
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe8eeea);
+    var camera = new THREE.PerspectiveCamera(42, width / height, .1, 5000);
+    var renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(width, height);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    container.appendChild(renderer.domElement);
+
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = .08;
+    controls.screenSpacePanning = true;
+    controls.maxPolarAngle = Math.PI * .49;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xa8b4ac, 1.35));
+    var sun = new THREE.DirectionalLight(0xffffff, .9);
+    sun.position.set(90, 140, 80);
+    sun.castShadow = true;
+    scene.add(sun);
+
+    var group = new THREE.Group();
+    scene.add(group);
+    var polygons = geojson.geometry.type === 'Polygon' ? [geojson.geometry.coordinates] : geojson.geometry.coordinates;
+    var groundMat = new THREE.MeshStandardMaterial({ color: 0xdfe9dc, roughness: 1, side: THREE.DoubleSide });
+    var edgeMat = new THREE.LineBasicMaterial({ color: 0x2f6946 });
+
+    polygons.forEach(function (poly) {
+        if (!poly || !poly.length) return;
+        var shape = new THREE.Shape();
+        poly[0].forEach(function (coord, i) {
+            var p = toLocal(coord);
+            if (i === 0) shape.moveTo(p.x, -p.z);
+            else shape.lineTo(p.x, -p.z);
+        });
+        for (var h = 1; h < poly.length; h++) {
+            var hole = new THREE.Path();
+            poly[h].forEach(function (coord, i) {
+                var p = toLocal(coord);
+                if (i === 0) hole.moveTo(p.x, -p.z);
+                else hole.lineTo(p.x, -p.z);
+            });
+            shape.holes.push(hole);
+        }
+        var geom = new THREE.ShapeGeometry(shape);
+        geom.rotateX(-Math.PI / 2);
+        var mesh = new THREE.Mesh(geom, groundMat);
+        mesh.receiveShadow = true;
+        group.add(mesh);
+
+        var pts = poly[0].map(function (coord) {
+            var p = toLocal(coord);
+            return new THREE.Vector3(p.x, .04, p.z);
+        });
+        group.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), edgeMat));
+    });
+
+    var floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(2000, 2000),
+        new THREE.MeshStandardMaterial({ color: 0xf2f5f3, roughness: 1 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -.08;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    var spanX = (bbox.maxLon - bbox.minLon) * 111320 * cosLat;
+    var spanZ = (bbox.maxLat - bbox.minLat) * 110540;
+    var span = Math.max(spanX, spanZ, 35);
+    var templates = null;
+    try {
+        templates = await cargarModelosArbolesPark3D();
+    } catch (error) {
+        console.warn('Fallo al cargar GLB; se usará representación simplificada.', error);
+    }
+    var conteoTipos = { round: 0, column: 0, conifer: 0, palm: 0 };
+    var distanciaLod = Math.max(30, span * (arboles.length > 220 ? .48 : .72));
+
+    arboles.forEach(function (tree) {
+        var lp = toLocal(tree.geometry.coordinates);
+        var pr = tree.properties || {};
+        var altura = limitarPark3D(numeroPark3D(pr.ALTURA_TOT, 7), 2.5, 28);
+        var alturaPunta = limitarPark3D(numeroPark3D(pr.ALTURA_PUN, altura * .42), .8, altura * .78);
+        var dapCm = numeroPark3D(pr.DAP, 25);
+        var copaEWRaw = sumaPositivaPark3D(numeroPark3D(pr['X1___E__'], NaN), numeroPark3D(pr['X2__O_'], NaN));
+        var copaNSRaw = sumaPositivaPark3D(numeroPark3D(pr['Y1__N_'], NaN), numeroPark3D(pr['Y2__S_'], NaN));
+        var copaEW = limitarPark3D(Number.isFinite(copaEWRaw) ? copaEWRaw : 4.8, 1.4, 18);
+        var copaNS = limitarPark3D(Number.isFinite(copaNSRaw) ? copaNSRaw : 4.8, 1.4, 18);
+        var tipoArbol = clasificarArbolPark3D(pr);
+        conteoTipos[tipoArbol]++;
+
+        var lod = new THREE.LOD();
+        lod.position.set(lp.x, 0, lp.z);
+        lod.rotation.y = anguloSemillaPark3D(pr);
+        if (templates && templates[tipoArbol]) {
+            var tpl = templates[tipoArbol];
+            var high = tpl.root.clone(true);
+            var sx = copaEW / Math.max(tpl.size.x, .01);
+            var sy = altura / Math.max(tpl.size.y, .01);
+            var sz = copaNS / Math.max(tpl.size.z, .01);
+            high.scale.set(sx, sy, sz);
+            high.position.y = -tpl.box.min.y * sy;
+            high.traverse(function (obj) {
+                if (obj.isMesh) {
+                    obj.castShadow = true;
+                    obj.receiveShadow = false;
+                }
+            });
+            lod.addLevel(high, 0);
+        }
+        lod.addLevel(crearArbolSimplePark3D(altura, copaEW, copaNS, alturaPunta, dapCm), templates && templates[tipoArbol] ? distanciaLod : 0);
+        group.add(lod);
+    });
+
+    setTextoPark3D('park3d-model-info', 'GLB: ' + conteoTipos.round + ' frondosos · ' + conteoTipos.column + ' verticales · ' + conteoTipos.conifer + ' coníferas · ' + conteoTipos.palm + ' palmeras');
+    var centrar = function () {
+        camera.position.set(span * .72, span * .72, span * .88);
+        controls.target.set(0, 0, 0);
+        controls.minDistance = span * .20;
+        controls.maxDistance = span * 4.2;
+        controls.update();
+    };
+    centrar();
+    var reset = document.getElementById('park3d-reset');
+    if (reset) reset.onclick = centrar;
+
+    var raf = null;
+    var animate = function () {
+        raf = requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    };
+    animate();
+
+    var onResize = function () {
+        if (!container.isConnected) return;
+        var w = Math.max(container.clientWidth, 320);
+        var h = Math.max(container.clientHeight, 320);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    };
+    window.addEventListener('resize', onResize);
+    parque3DEstado = { scene: scene, renderer: renderer, controls: controls, raf: raf, onResize: onResize };
+}
+
+function abrirParque3D(feature) {
+    var targetFeature = feature || parque3DSeleccionado;
+    if (!targetFeature) return;
+    if (typeof THREE === 'undefined' || typeof THREE.OrbitControls === 'undefined') {
+        alert('No se pudo cargar la vista 3D. Revisa la conexión a internet para cargar Three.js.');
+        return;
+    }
+
+    parque3DSeleccionado = targetFeature;
+    var p = targetFeature.getProperties();
+    var arboles = arbolesParaParque3D(targetFeature);
+    setTextoPark3D('park3d-code', p['CÓDIGO'] || ('ID ' + (p.ID || '—')));
+    setTextoPark3D('park3d-title', p.NOMBRE || 'Vista 3D del parque');
+    setTextoPark3D('park3d-area', formatoAreaPark3D(p['ÁREA']));
+    setTextoPark3D('park3d-trees', arboles.length.toLocaleString('es-PE'));
+    setTextoPark3D('park3d-green-actual', porcentajePark3D(p['%OCUP_VERD']));
+    setTextoPark3D('park3d-green-min', p['AREA VERDE'] || '—');
+    setTextoPark3D('park3d-gray-actual', porcentajePark3D(p['%OCUP_GRIS']));
+    setTextoPark3D('park3d-gray-max', p.O_GRIS_MAX || '—');
+    setTextoPark3D('park3d-tree-cover', p.CO_ARBOREA || '—');
+
+    var modal = document.getElementById('park3d-modal');
+    var loading = document.getElementById('park3d-loading');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+    if (loading) {
+        loading.textContent = 'Cargando arbolado GLB…';
+        loading.classList.remove('hidden');
+    }
+
+    requestAnimationFrame(async function () {
+        try {
+            await construirEscenaParque3D(targetFeature, arboles);
+            if (loading) loading.classList.add('hidden');
+        } catch (error) {
+            console.error(error);
+            if (loading) loading.textContent = 'No se pudo construir la vista 3D.';
+        }
+    });
+}
+
+window.abrirParque3DSeleccionado = function () {
+    abrirParque3D(parque3DSeleccionado);
+};
+
 function mostrarFicha(feature, coordinate) {
     if (!feature || feature.get('__tipo') === 'manzana') { cerrarFicha(); return; }
 
@@ -653,6 +1280,7 @@ function mostrarFicha(feature, coordinate) {
 
     var p = feature.getProperties();
     var tipo = feature.get('__tipo');
+    parque3DSeleccionado = tipo === 'parque' ? feature : null;
     sourceHighlight.clear();
     sourceHighlight.addFeature(feature);
 
@@ -685,6 +1313,7 @@ function mostrarFicha(feature, coordinate) {
         if (ocg === null && pd2) ocg = numeroSeguro(pd2.ocg);
 
         title.innerHTML = '<i class="fas fa-tree"></i> ' + p.NOMBRE;
+        finalHtml += '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-cube"></i> Explorar parque en 3D</button>';
 
         var areaNum = parseFloat(p['ÁREA']);
         var areaFmt = isNaN(areaNum) ? '—' : areaNum.toLocaleString('es-PE', { maximumFractionDigits: 0 }) + ' m²';
@@ -870,8 +1499,14 @@ function mostrarFicha(feature, coordinate) {
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
     }
 
+    if (tipo === 'parque') {
+        finalHtml = construirStreetView(coordinate)
+            + '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-cube"></i> VER PARQUE EN 3D</button>';
+    }
+
     content.innerHTML = finalHtml;
     ficha.style.display = 'flex';
+    resaltarLeyendaParaFeature(feature);
 }
 
 var PRIORIDAD_CLICK_FEATURE = {

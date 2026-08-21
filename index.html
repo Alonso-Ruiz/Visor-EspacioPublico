@@ -120,6 +120,45 @@
         </div>
     </div>
 
+    <div class="park3d-modal hidden" id="park3d-modal" aria-hidden="true">
+        <div class="park3d-card" role="dialog" aria-modal="true" aria-labelledby="park3d-title">
+            <div class="park3d-toolbar">
+                <div>
+                    <span class="park3d-chip" id="park3d-code">—</span>
+                    <h2 id="park3d-title">Vista 3D del parque</h2>
+                </div>
+                <div class="park3d-actions">
+                    <button type="button" class="park3d-ghost-btn" id="park3d-reset">Recentrar</button>
+                    <button type="button" class="park3d-close-btn" id="park3d-close" aria-label="Cerrar vista 3D">×</button>
+                </div>
+            </div>
+            <div class="park3d-layout">
+                <div id="park3d-container" class="park3d-container">
+                    <div class="park3d-hint">Arrastra para orbitar · rueda para acercar</div>
+                    <div class="park3d-loading" id="park3d-loading">Construyendo modelo…</div>
+                </div>
+                <aside class="park3d-panel">
+                    <h3>Lectura para diseño</h3>
+                    <p class="park3d-intro">El parque se representa con su polígono y el arbolado contenido. Es una vista referencial para explorar volumen, copas y ocupación.</p>
+                    <div class="park3d-stat"><span>Área del parque</span><strong id="park3d-area">—</strong></div>
+                    <div class="park3d-stat"><span>Árboles contenidos</span><strong id="park3d-trees">—</strong></div>
+                    <div class="park3d-stat"><span>Verde actual</span><strong id="park3d-green-actual">—</strong></div>
+                    <div class="park3d-stat"><span>Verde mínimo</span><strong id="park3d-green-min">—</strong></div>
+                    <div class="park3d-stat"><span>Gris actual</span><strong id="park3d-gray-actual">—</strong></div>
+                    <div class="park3d-stat"><span>Gris máximo</span><strong id="park3d-gray-max">—</strong></div>
+                    <div class="park3d-stat"><span>Cobertura arbórea objetivo</span><strong id="park3d-tree-cover">—</strong></div>
+                    <div class="park3d-divider"></div>
+                    <div id="park3d-model-info" class="park3d-model-info">Modelos GLB optimizados</div>
+                    <div class="park3d-legend">
+                        <span><i class="park3d-swatch park3d-swatch--ground"></i> Superficie del parque</span>
+                        <span><i class="park3d-swatch park3d-swatch--canopy"></i> Arbolado GLB según tipología</span>
+                    </div>
+                    <p class="park3d-footnote">Los modelos GLB se escalan con la altura total y las dimensiones E–O / N–S disponibles en el inventario. A distancia se activa una geometría simplificada para mantener el rendimiento.</p>
+                </aside>
+            </div>
+        </div>
+    </div>
+
     <div id="panel-derecho" class="oculto">
         <div class="cabecera-panel">
             <button id="btn-cerrar-panel" type="button" title="Cerrar panel de capas"
@@ -442,6 +481,10 @@
     <script src="layers/ALAMEDASDESUBMANZANAS_2.js"></script>
     <script src="layers/BORDEDESUBMANZANAYREALIBRE_3.js"></script>
 
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="data/rboles_parque_0.js"></script>
     <script src="assets/js/app.js"></script>
     <script src="assets/js/streetview.js"></script>
 </body>

@@ -69,6 +69,12 @@ img {
     cursor: grabbing !important;
 }
 
+.ol-viewport.is-pitched .ol-layer {
+    transform: perspective(1500px) rotateX(var(--map-pitch, 0deg)) scale(var(--map-pitch-scale, 1.65));
+    transform-origin: center bottom;
+    will-change: transform;
+}
+
 /* =========================================
    PANEL IZQUIERDO (Buscador + Ficha)
    ========================================= */
@@ -400,11 +406,239 @@ img {
     background: var(--sb-green-dark);
 }
 
+.btn-accion--3d {
+    border: 0;
+    margin-bottom: 10px;
+    background: linear-gradient(135deg, #059669, #047857);
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-accion--3d:hover {
+    background: linear-gradient(135deg, #047857, #065f46);
+}
+
 .feature-description {
     margin: 0;
     color: #475569;
     font-size: .84rem;
     line-height: 1.55;
+}
+
+.park3d-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: grid;
+    place-items: center;
+    padding: 22px;
+    box-sizing: border-box;
+    background: rgba(6, 18, 12, .72);
+    backdrop-filter: blur(4px);
+}
+
+.park3d-modal.hidden {
+    display: none;
+}
+
+.park3d-card {
+    width: min(1320px, 100%);
+    height: min(840px, calc(100dvh - 44px));
+    display: grid;
+    grid-template-rows: 72px minmax(0, 1fr);
+    overflow: hidden;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .38);
+}
+
+.park3d-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--sb-border);
+}
+
+.park3d-toolbar h2 {
+    margin: 3px 0 0;
+    color: var(--sb-navy);
+    font-size: 18px;
+    line-height: 1.2;
+}
+
+.park3d-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #e7f5ee;
+    color: var(--sb-green-dark);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.park3d-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.park3d-ghost-btn,
+.park3d-close-btn {
+    border: 1px solid var(--sb-border);
+    border-radius: 9px;
+    background: #ffffff;
+    color: var(--sb-navy);
+    cursor: pointer;
+}
+
+.park3d-ghost-btn {
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.park3d-close-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 24px;
+    line-height: 1;
+}
+
+.park3d-layout {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 310px;
+}
+
+.park3d-container {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    background: #e8eeea;
+}
+
+.park3d-container canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.park3d-hint {
+    position: absolute;
+    left: 14px;
+    bottom: 14px;
+    z-index: 4;
+    padding: 7px 9px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, .9);
+    color: #64748b;
+    font-size: 10px;
+    pointer-events: none;
+}
+
+.park3d-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    background: rgba(232, 238, 234, .92);
+    color: #475569;
+    font-size: 13px;
+}
+
+.park3d-loading.hidden {
+    display: none;
+}
+
+.park3d-panel {
+    overflow: auto;
+    padding: 18px;
+    border-left: 1px solid var(--sb-border);
+}
+
+.park3d-panel h3 {
+    margin: 0 0 8px;
+    color: var(--sb-navy);
+    font-size: 15px;
+}
+
+.park3d-intro,
+.park3d-footnote {
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.55;
+}
+
+.park3d-stat {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 8px 0;
+    border-bottom: 1px dashed #e4e9e6;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.park3d-stat strong {
+    color: var(--sb-navy);
+    text-align: right;
+}
+
+.park3d-divider {
+    height: 1px;
+    margin: 15px 0;
+    background: var(--sb-border);
+}
+
+.park3d-legend {
+    display: grid;
+    gap: 9px;
+    color: #64748b;
+    font-size: 10.5px;
+}
+
+.park3d-model-info {
+    margin-bottom: 10px;
+    padding: 8px 9px;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.park3d-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.park3d-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.park3d-swatch--ground {
+    background: #dfe9dc;
+    border: 1px solid #7aa178;
+}
+
+.park3d-swatch--canopy {
+    border-radius: 50%;
+    background: #5b8f5a;
+}
+
+.park3d-swatch--trunk {
+    background: #765642;
 }
 
 .guia-box {
@@ -853,6 +1087,30 @@ img {
     cursor: pointer;
 }
 
+.legend-focus {
+    border-color: #93c5fd !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22), 0 8px 20px rgba(37, 99, 235, 0.16);
+    background: #eff6ff !important;
+    animation: legendFocusPulse 1.15s ease-in-out 2;
+}
+
+.legend-focus label,
+.legend-focus span {
+    color: #1d4ed8 !important;
+}
+
+@keyframes legendFocusPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), 0 8px 20px rgba(37, 99, 235, 0.12);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.32), 0 10px 26px rgba(37, 99, 235, 0.2);
+    }
+}
+
 input[type="range"] {
     width: 100%;
     accent-color: var(--sb-green);
@@ -1209,6 +1467,34 @@ input[type="range"] {
    RESPONSIVE (Modo Vertical - Portrait)
    ========================================= */
 @media (max-width: 896px) and (orientation: portrait) {
+    .park3d-modal {
+        padding: 8px;
+    }
+
+    .park3d-card {
+        height: calc(100dvh - 16px);
+        grid-template-rows: 66px minmax(0, 1fr);
+        border-radius: 14px;
+    }
+
+    .park3d-toolbar {
+        padding: 0 12px;
+    }
+
+    .park3d-toolbar h2 {
+        font-size: 15px;
+    }
+
+    .park3d-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(360px, 1fr) minmax(180px, 260px);
+    }
+
+    .park3d-panel {
+        border-left: 0;
+        border-top: 1px solid var(--sb-border);
+    }
+
     #left-panel {
         width: calc(100% - 86px);
         max-height: calc(100dvh - 150px);
@@ -1268,6 +1554,15 @@ input[type="range"] {
    RESPONSIVE (Modo Horizontal - Landscape)
    ========================================= */
 @media (max-width: 896px) and (orientation: landscape) {
+    .park3d-modal {
+        padding: 8px;
+    }
+
+    .park3d-card {
+        height: calc(100dvh - 16px);
+        border-radius: 14px;
+    }
+
     #left-panel {
         width: 300px;
         max-height: calc(100dvh - 30px);
