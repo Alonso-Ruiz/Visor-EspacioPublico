@@ -219,14 +219,7 @@ var ficha = document.getElementById('ficha-tecnica');
 var parque3DSeleccionado = null;
 var parque3DCacheArboles = new Map();
 var parque3DEstado = null;
-var parque3DTemplatesPromise = null;
-var PARQUE_3D_MODELOS = {
-    round: 'models/tree_round.glb',
-    column: 'models/tree_column.glb',
-    conifer: 'models/tree_conifer.glb',
-    palm: 'models/tree_palm.glb'
-};
-var PARQUE_3D_LOW_TREE = null;
+var parque3DDependenciasPromise = null;
 
 function cerrarFicha() {
     ficha.style.display = 'none';
@@ -501,6 +494,7 @@ northBtn.onclick = function () {
     inclinacionVisual = 0;
     map.getViewport().style.setProperty('--map-pitch', '0deg');
     map.getViewport().style.setProperty('--map-pitch-scale', '1');
+    map.getViewport().style.setProperty('--map-pitch-shift', '0%');
     map.getViewport().classList.remove('is-pitched');
     view.animate({ rotation: 0, duration: 500, easing: ol.easing.easeOut });
 };
@@ -517,9 +511,11 @@ function moverRotacionMapaDerecho(event) {
     rotacionMouseX = event.clientX;
     map.getView().setRotation(map.getView().getRotation() + dx * 0.004);
     inclinacionVisual = Math.max(0, Math.min(45, inclinacionVisual + dy * 0.25));
-    var escalaInclinacion = 1 + (inclinacionVisual / 45) * 0.72;
+    var factorInclinacion = inclinacionVisual / 45;
+    var escalaInclinacion = 1 + factorInclinacion * 1.15;
     map.getViewport().style.setProperty('--map-pitch', inclinacionVisual + 'deg');
     map.getViewport().style.setProperty('--map-pitch-scale', escalaInclinacion.toFixed(2));
+    map.getViewport().style.setProperty('--map-pitch-shift', (-17 * factorInclinacion).toFixed(1) + '%');
     map.getViewport().classList.toggle('is-pitched', inclinacionVisual > 1);
     inclinacionMapaActiva = inclinacionVisual > 1;
 }
@@ -540,6 +536,31 @@ window.addEventListener('mouseup', function (event) {
     window.removeEventListener('mousemove', moverRotacionMapaDerecho);
     map.getViewport().style.cursor = '';
 });
+
+function pixelOriginalDesdeVistaInclinada(pixel) {
+    var viewport = map.getViewport();
+    if (!viewport.classList.contains('is-pitched') || typeof DOMMatrixReadOnly === 'undefined' || typeof DOMPoint === 'undefined') {
+        return pixel;
+    }
+
+    var layer = viewport.querySelector('.ol-layer');
+    if (!layer) return pixel;
+    var transform = window.getComputedStyle(layer).transform;
+    if (!transform || transform === 'none') return pixel;
+
+    try {
+        var rect = viewport.getBoundingClientRect();
+        var originX = rect.width / 2;
+        var originY = rect.height;
+        var matrix = new DOMMatrixReadOnly(transform);
+        var inverse = matrix.inverse();
+        var point = inverse.transformPoint(new DOMPoint(pixel[0] - originX, pixel[1] - originY, 0, 1));
+        var w = point.w || 1;
+        return [point.x / w + originX, point.y / w + originY];
+    } catch (error) {
+        return pixel;
+    }
+}
 
 function actualizarEstadoLeyendaVial() {
     var movilidadActiva = filtroActivo('chk-movilidad-general');
@@ -874,12 +895,148 @@ function normalizarPark3D(valor) {
     return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-function clasificarArbolPark3D(propiedades) {
-    var texto = normalizarPark3D((propiedades.NOMBRE_COM || '') + ' ' + (propiedades.NOMBRE_CIE || '') + ' ' + (propiedades.FAMILIA || ''));
-    if (/palmera|dypsis|washingtonia|phoenix|arecaceae|coco|cocos/.test(texto)) return 'palm';
-    if (/pino|pinus|cipres|cupress|araucaria/.test(texto)) return 'conifer';
-    if (/casuarina|eucalipto|eucalyptus|molle|schinus/.test(texto)) return 'column';
-    return 'round';
+function cargarScriptPark3D(src, testFn) {
+    return new Promise(function (resolve, reject) {
+        if (testFn && testFn()) {
+            resolve();
+            return;
+        }
+
+        var existente = document.querySelector('script[data-park3d-src="' + src + '"]');
+        if (existente) {
+            existente.addEventListener('load', resolve, { once: true });
+            existente.addEventListener('error', reject, { once: true });
+            return;
+        }
+
+        var script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.dataset.park3dSrc = src;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+function cargarDependenciasParque3D() {
+    if (parque3DDependenciasPromise) return parque3DDependenciasPromise;
+    parque3DDependenciasPromise = Promise.resolve()
+        .then(function () {
+            return cargarScriptPark3D('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js', function () {
+                return typeof THREE !== 'undefined';
+            });
+        })
+        .then(function () {
+            return cargarScriptPark3D('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js', function () {
+                return typeof THREE !== 'undefined' && !!THREE.OrbitControls;
+            });
+        })
+        .then(function () {
+            return cargarScriptPark3D('data/rboles_parque_0.js', function () {
+                return typeof json_rboles_parque_0 !== 'undefined';
+            });
+        })
+        .then(function () {
+            return cargarScriptPark3D('assets/js/tree_assets.js', function () {
+                return !!window.TREE_VISUAL_ASSETS;
+            });
+        });
+    return parque3DDependenciasPromise;
+}
+
+function numeroFlexiblePark3D(valor) {
+    if (typeof valor === 'number') return Number.isFinite(valor) ? valor : NaN;
+    if (valor === null || valor === undefined) return NaN;
+    var match = String(valor).replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+    return match ? parseFloat(match[0]) : NaN;
+}
+
+function numeroPositivoPark3D(valor) {
+    var numero = numeroFlexiblePark3D(valor);
+    return Number.isFinite(numero) && numero > 0 ? numero : NaN;
+}
+
+function porcentajeNumeroPark3D(valor) {
+    var numero = numeroFlexiblePark3D(valor);
+    return Number.isFinite(numero) ? numero : NaN;
+}
+
+function recortarNumeroPark3D(numero) {
+    return Math.abs(numero - Math.round(numero)) < 1e-9 ? String(Math.round(numero)) : numero.toFixed(1);
+}
+
+function valorMetricoPark3D(valor, unidad) {
+    return Number.isFinite(valor) ? recortarNumeroPark3D(valor) + (unidad || '') : '—';
+}
+
+function metricasArbolPark3D(propiedades) {
+    var altura = numeroPositivoPark3D(propiedades.ALTURA_TOT);
+    var alturaPunto = numeroPositivoPark3D(propiedades.ALTURA_PUN);
+    var dap = numeroPositivoPark3D(propiedades.DAP);
+    var este = numeroPositivoPark3D(propiedades['X1___E__']);
+    var oeste = numeroPositivoPark3D(propiedades['X2__O_']);
+    var norte = numeroPositivoPark3D(propiedades['Y1__N_']);
+    var sur = numeroPositivoPark3D(propiedades['Y2__S_']);
+    var ew = sumaPositivaPark3D(este, oeste);
+    var ns = sumaPositivaPark3D(norte, sur);
+    return {
+        altura: limitarPark3D(Number.isFinite(altura) ? altura : 7, 2.5, 30),
+        libre: limitarPark3D(Number.isFinite(alturaPunto) ? alturaPunto : (Number.isFinite(altura) ? altura * .42 : 3), .8, Number.isFinite(altura) ? altura * .78 : 6),
+        dap: Number.isFinite(dap) ? dap : 25,
+        ew: limitarPark3D(Number.isFinite(ew) ? ew : 4.8, 1.4, 20),
+        ns: limitarPark3D(Number.isFinite(ns) ? ns : 4.8, 1.4, 20)
+    };
+}
+
+function elegirTexturaArbolPark3D(propiedades, metricas, index) {
+    var forma = normalizarPark3D(propiedades.FORMA_DE_C || '');
+    var nombre = normalizarPark3D(propiedades.NOMBRE_COM || '');
+    var ratio = metricas.ew / Math.max(metricas.altura, 1);
+    if (/palmera|dypsis|washingtonia|phoenix|arecaceae/.test(nombre)) return 'slender';
+    if (ratio > .78 || forma === 't') return index % 2 ? 'wide' : 'irregular';
+    if (metricas.altura < 6) return 'young';
+    if (ratio < .38) return 'slender';
+    return index % 3 === 0 ? 'tall' : (index % 3 === 1 ? 'round' : 'irregular');
+}
+
+function crearTexturaImagenPark3D(uri) {
+    var texture = new THREE.TextureLoader().load(uri);
+    texture.encoding = THREE.sRGBEncoding;
+    texture.minFilter = THREE.LinearMipMapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = 4;
+    return texture;
+}
+
+function crearTexturaCanvasPark3D(tipo) {
+    var canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 128;
+    var ctx = canvas.getContext('2d');
+    if (tipo === 'canopy') {
+        var canopy = ctx.createRadialGradient(64, 64, 4, 64, 64, 58);
+        canopy.addColorStop(0, 'rgba(100, 150, 68, .86)');
+        canopy.addColorStop(.6, 'rgba(70, 125, 56, .56)');
+        canopy.addColorStop(1, 'rgba(70, 125, 56, 0)');
+        ctx.fillStyle = canopy;
+    } else if (tipo === 'shadow') {
+        var shadow = ctx.createRadialGradient(64, 64, 4, 64, 64, 58);
+        shadow.addColorStop(0, 'rgba(20, 25, 20, .28)');
+        shadow.addColorStop(.55, 'rgba(20, 25, 20, .13)');
+        shadow.addColorStop(1, 'rgba(20, 25, 20, 0)');
+        ctx.fillStyle = shadow;
+    } else {
+        ctx.fillStyle = '#b8caae';
+        ctx.fillRect(0, 0, 128, 128);
+        for (var i = 0; i < 900; i++) {
+            ctx.fillStyle = Math.random() > .5 ? 'rgba(88, 132, 72, .18)' : 'rgba(214, 224, 190, .2)';
+            ctx.fillRect(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 2, 1 + Math.random() * 2);
+        }
+    }
+    if (tipo === 'canopy' || tipo === 'shadow') ctx.fillRect(0, 0, 128, 128);
+    var texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    return texture;
 }
 
 function anguloSemillaPark3D(propiedades) {
@@ -887,73 +1044,6 @@ function anguloSemillaPark3D(propiedades) {
     var hash = 0;
     for (var i = 0; i < raw.length; i++) hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
     return (hash % 6283) / 1000;
-}
-
-function obtenerLowTreePark3D() {
-    if (PARQUE_3D_LOW_TREE) return PARQUE_3D_LOW_TREE;
-    PARQUE_3D_LOW_TREE = {
-        trunkGeom: new THREE.CylinderGeometry(.5, .58, 1, 6),
-        canopyGeom: new THREE.IcosahedronGeometry(1, 1),
-        trunkMat: new THREE.MeshStandardMaterial({ color: 0x765642, roughness: 1 }),
-        canopyMat: new THREE.MeshStandardMaterial({ color: 0x527f50, roughness: 1, flatShading: true })
-    };
-    return PARQUE_3D_LOW_TREE;
-}
-
-function crearArbolSimplePark3D(altura, copaEW, copaNS, alturaLibre, dapCm) {
-    var low = obtenerLowTreePark3D();
-    var group = new THREE.Group();
-    var radioTronco = limitarPark3D((Number.isFinite(dapCm) ? dapCm : 25) / 200, .10, .65);
-    var troncoH = limitarPark3D(alturaLibre, 1.0, altura * .72);
-    var trunk = new THREE.Mesh(low.trunkGeom, low.trunkMat);
-    trunk.position.y = troncoH / 2;
-    trunk.scale.set(radioTronco / .5, troncoH, radioTronco / .5);
-    trunk.castShadow = true;
-    var copaH = limitarPark3D(altura - troncoH, 1.4, altura * .72);
-    var canopy = new THREE.Mesh(low.canopyGeom, low.canopyMat);
-    canopy.position.y = troncoH + copaH * .45;
-    canopy.scale.set(copaEW / 2, copaH * .55, copaNS / 2);
-    canopy.castShadow = true;
-    group.add(trunk, canopy);
-    return group;
-}
-
-function cargarModelosArbolesPark3D() {
-    if (parque3DTemplatesPromise) return parque3DTemplatesPromise;
-    parque3DTemplatesPromise = new Promise(function (resolve, reject) {
-        if (!THREE.GLTFLoader) {
-            reject(new Error('GLTFLoader no está disponible.'));
-            return;
-        }
-        var loader = new THREE.GLTFLoader();
-        var entries = Object.entries(PARQUE_3D_MODELOS);
-        Promise.all(entries.map(function (entry) {
-            var key = entry[0], url = entry[1];
-            return new Promise(function (res, rej) {
-                loader.load(url, function (gltf) {
-                    var root = gltf.scene;
-                    root.traverse(function (obj) {
-                        if (obj.isMesh) {
-                            obj.castShadow = true;
-                            obj.receiveShadow = true;
-                            if (obj.geometry) obj.geometry.userData.__sharedGlbAsset = true;
-                            var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-                            mats.filter(Boolean).forEach(function (mat) { mat.userData.__sharedGlbAsset = true; });
-                        }
-                    });
-                    var box = new THREE.Box3().setFromObject(root);
-                    var size = box.getSize(new THREE.Vector3());
-                    res([key, { root: root, size: size, box: box }]);
-                }, undefined, rej);
-            });
-        })).then(function (items) {
-            resolve(Object.fromEntries(items));
-        }).catch(function (error) {
-            parque3DTemplatesPromise = null;
-            reject(error);
-        });
-    });
-    return parque3DTemplatesPromise;
 }
 
 function parqueFeatureAGeoJson(feature) {
@@ -1043,19 +1133,111 @@ function limpiarEscenaParque3D() {
     window.removeEventListener('resize', parque3DEstado.onResize);
     if (parque3DEstado.controls && parque3DEstado.controls.dispose) parque3DEstado.controls.dispose();
     parque3DEstado.scene.traverse(function (obj) {
-        var low = PARQUE_3D_LOW_TREE;
-        if (obj.geometry && obj.geometry.dispose && !obj.geometry.userData.__sharedGlbAsset && (!low || (obj.geometry !== low.trunkGeom && obj.geometry !== low.canopyGeom))) obj.geometry.dispose();
+        if (obj.geometry && obj.geometry.dispose) obj.geometry.dispose();
         if (obj.material) {
             (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(function (mat) {
-                if (mat.dispose && !mat.userData.__sharedGlbAsset && (!low || (mat !== low.trunkMat && mat !== low.canopyMat))) mat.dispose();
+                if (mat.dispose) mat.dispose();
             });
         }
     });
     parque3DEstado.renderer.dispose();
+    (parque3DEstado.extraTextures || []).forEach(function (texture) {
+        if (texture && texture.dispose) texture.dispose();
+    });
     if (parque3DEstado.renderer.domElement && parque3DEstado.renderer.domElement.parentNode) {
         parque3DEstado.renderer.domElement.parentNode.removeChild(parque3DEstado.renderer.domElement);
     }
     parque3DEstado = null;
+}
+
+function estadoCalculoPark3D(id, ok, nota) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.className = ok === null ? 'neutral' : (ok ? 'ok' : 'bad');
+    el.textContent = (ok === null ? '' : (ok ? 'CUMPLE · ' : 'EXCEDE · ')) + nota;
+}
+
+function calcularOcupacionPark3D(feature) {
+    var p = feature.getProperties ? feature.getProperties() : {};
+    var area = numeroPositivoPark3D(p['ÁREA']) || 0;
+    if (!area) return;
+    var val = function (id) {
+        var input = document.getElementById(id);
+        return Math.max(0, numeroFlexiblePark3D(input ? input.value : 0) || 0);
+    };
+    var green = val('park3d-calc-green');
+    var gray = val('park3d-calc-gray');
+    var footprint = val('park3d-calc-footprint');
+    var support = val('park3d-calc-support');
+    var recreation = val('park3d-calc-recreation');
+    var commercial = val('park3d-calc-commercial');
+    var other = val('park3d-calc-other');
+
+    var greenPct = green / area * 100;
+    var grayPct = gray / area * 100;
+    var io = footprint / area;
+    var minGreen = porcentajeNumeroPark3D(p['AREA VERDE']);
+    var maxGray = porcentajeNumeroPark3D(p.O_GRIS_MAX);
+    var ioMax = numeroFlexiblePark3D(p['ÍNDIC_OCU']);
+    var absMax = numeroPositivoPark3D(p['HT_MAX(m2)']);
+    var byIO = Number.isFinite(ioMax) ? area * ioMax : Infinity;
+    var effective = Math.min(byIO, Number.isFinite(absMax) ? absMax : Infinity);
+    var effectiveFinite = Number.isFinite(effective) ? effective : null;
+    var unassigned = area - green - gray;
+
+    setTextoPark3D('park3d-calc-green-pct', recortarNumeroPark3D(greenPct) + '%');
+    setTextoPark3D('park3d-calc-gray-pct', recortarNumeroPark3D(grayPct) + '%');
+    setTextoPark3D('park3d-calc-io', io.toFixed(4));
+    setTextoPark3D('park3d-calc-effective-footprint', effectiveFinite !== null ? formatoAreaPark3D(effective) : '—');
+    setTextoPark3D('park3d-calc-unassigned', Math.abs(unassigned).toLocaleString('es-PE', { maximumFractionDigits: 1 }) + ' m² ' + (unassigned >= 0 ? 'libres' : 'excedidos'));
+
+    estadoCalculoPark3D('park3d-calc-green-status', Number.isFinite(minGreen) ? greenPct >= minGreen : null, Number.isFinite(minGreen) ? 'mínimo ' + recortarNumeroPark3D(minGreen) + '%' : 'sin parámetro');
+    estadoCalculoPark3D('park3d-calc-gray-status', Number.isFinite(maxGray) ? grayPct <= maxGray : null, Number.isFinite(maxGray) ? 'máximo ' + recortarNumeroPark3D(maxGray) + '%' : 'sin parámetro');
+    estadoCalculoPark3D('park3d-calc-io-status', Number.isFinite(ioMax) && effectiveFinite !== null ? footprint <= effective : null, Number.isFinite(ioMax) ? 'IO normativo ' + ioMax + (effectiveFinite !== null ? ' · tope ' + formatoAreaPark3D(effective) : '') : 'sin parámetro');
+
+    var allocation = document.getElementById('park3d-calc-allocation-status');
+    if (allocation) {
+        allocation.className = Math.abs(unassigned) <= Math.max(1, area * .002) ? 'ok' : (unassigned < 0 ? 'bad' : 'neutral');
+        allocation.textContent = Math.abs(unassigned) <= Math.max(1, area * .002)
+            ? 'superficie total asignada'
+            : (unassigned < 0 ? 'verde + gris supera el área del parque' : 'área todavía no asignada');
+    }
+
+    var usos = [
+        ['Soporte', support, p.SOPORTE],
+        ['Recreativo', recreation, p.RECREATIVO],
+        ['Comercial', commercial, p.COMERCIAL],
+        ['Otros usos', other, p.OTR_USOS]
+    ];
+    var contenedor = document.getElementById('park3d-calc-use-results');
+    if (contenedor) {
+        contenedor.innerHTML = usos.map(function (item) {
+            var pct = item[1] / area * 100;
+            var max = porcentajeNumeroPark3D(item[2]);
+            var ok = Number.isFinite(max) ? pct <= max : null;
+            return '<div class="park3d-calc-use-row"><span>' + item[0] + '</span><strong>' + recortarNumeroPark3D(pct) + '% / ' + (Number.isFinite(max) ? recortarNumeroPark3D(max) + '%' : '—') + '</strong><em class="' + (ok === null ? '' : (ok ? 'ok' : 'bad')) + '">' + (ok === null ? '—' : (ok ? 'CUMPLE' : 'EXCEDE')) + '</em></div>';
+        }).join('');
+    }
+}
+
+function iniciarCalculadoraPark3D(feature) {
+    var p = feature.getProperties ? feature.getProperties() : {};
+    var area = numeroPositivoPark3D(p['ÁREA']) || 0;
+    var greenActual = porcentajeNumeroPark3D(p['%OCUP_VERD']);
+    var grayActual = porcentajeNumeroPark3D(p['%OCUP_GRIS']);
+    var ids = ['park3d-calc-green', 'park3d-calc-gray', 'park3d-calc-footprint', 'park3d-calc-support', 'park3d-calc-recreation', 'park3d-calc-commercial', 'park3d-calc-other'];
+    var input = function (id) { return document.getElementById(id); };
+    if (input('park3d-calc-green')) input('park3d-calc-green').value = Number.isFinite(greenActual) ? (area * greenActual / 100).toFixed(1) : '';
+    if (input('park3d-calc-gray')) input('park3d-calc-gray').value = Number.isFinite(grayActual) ? (area * grayActual / 100).toFixed(1) : '';
+    ['park3d-calc-footprint', 'park3d-calc-support', 'park3d-calc-recreation', 'park3d-calc-commercial', 'park3d-calc-other'].forEach(function (id) {
+        if (input(id)) input(id).value = 0;
+    });
+    ids.forEach(function (id) {
+        if (input(id)) input(id).oninput = function () { calcularOcupacionPark3D(feature); };
+    });
+    var reset = document.getElementById('park3d-reset-calc');
+    if (reset) reset.onclick = function () { iniciarCalculadoraPark3D(feature); };
+    calcularOcupacionPark3D(feature);
 }
 
 async function construirEscenaParque3D(feature, arboles) {
@@ -1079,33 +1261,45 @@ async function construirEscenaParque3D(feature, arboles) {
     };
 
     var scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xe8eeea);
+    scene.background = new THREE.Color(0xd8e4e9);
+    scene.fog = new THREE.Fog(0xd8e4e9, 220, 760);
     var camera = new THREE.PerspectiveCamera(42, width / height, .1, 5000);
-    var renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.8));
     renderer.setSize(width, height);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     container.appendChild(renderer.domElement);
 
     var controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = .08;
+    controls.dampingFactor = .07;
     controls.screenSpacePanning = true;
-    controls.maxPolarAngle = Math.PI * .49;
+    controls.minPolarAngle = Math.PI * .16;
+    controls.maxPolarAngle = Math.PI * .46;
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xa8b4ac, 1.35));
-    var sun = new THREE.DirectionalLight(0xffffff, .9);
-    sun.position.set(90, 140, 80);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x839078, 1.2));
+    var sun = new THREE.DirectionalLight(0xfff4dd, 1.7);
+    sun.position.set(130, 220, 100);
     sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
     scene.add(sun);
 
     var group = new THREE.Group();
     scene.add(group);
     var polygons = geojson.geometry.type === 'Polygon' ? [geojson.geometry.coordinates] : geojson.geometry.coordinates;
-    var groundMat = new THREE.MeshStandardMaterial({ color: 0xdfe9dc, roughness: 1, side: THREE.DoubleSide });
-    var edgeMat = new THREE.LineBasicMaterial({ color: 0x2f6946 });
+    var visuals = window.TREE_VISUAL_ASSETS || {};
+    var spanX = (bbox.maxLon - bbox.minLon) * 111320 * cosLat;
+    var spanZ = (bbox.maxLat - bbox.minLat) * 110540;
+    var span = Math.max(spanX, spanZ, 35);
+    var grass = visuals.grass ? crearTexturaImagenPark3D(visuals.grass) : crearTexturaCanvasPark3D('grass');
+    grass.wrapS = grass.wrapT = THREE.RepeatWrapping;
+    grass.repeat.set(Math.max(2, spanX / 25), Math.max(2, spanZ / 25));
+    var groundMat = new THREE.MeshStandardMaterial({ map: grass, color: 0xb8caae, roughness: 1, metalness: 0, side: THREE.DoubleSide });
+    var edgeMat = new THREE.LineBasicMaterial({ color: 0x2f6946, transparent: true, opacity: .75 });
 
     polygons.forEach(function (poly) {
         if (!poly || !poly.length) return;
@@ -1138,73 +1332,122 @@ async function construirEscenaParque3D(feature, arboles) {
     });
 
     var floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(2000, 2000),
-        new THREE.MeshStandardMaterial({ color: 0xf2f5f3, roughness: 1 })
+        new THREE.PlaneGeometry(2500, 2500),
+        new THREE.MeshStandardMaterial({ color: 0xb6b9ad, roughness: 1 })
     );
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -.08;
+    floor.position.y = -.12;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    var spanX = (bbox.maxLon - bbox.minLon) * 111320 * cosLat;
-    var spanZ = (bbox.maxLat - bbox.minLat) * 110540;
-    var span = Math.max(spanX, spanZ, 35);
-    var templates = null;
-    try {
-        templates = await cargarModelosArbolesPark3D();
-    } catch (error) {
-        console.warn('Fallo al cargar GLB; se usará representación simplificada.', error);
-    }
-    var conteoTipos = { round: 0, column: 0, conifer: 0, palm: 0 };
-    var distanciaLod = Math.max(30, span * (arboles.length > 220 ? .48 : .72));
+    var textureKeys = ['wide', 'tall', 'slender', 'young', 'irregular', 'round'];
+    var treeTextures = {};
+    var treeMaterials = {};
+    textureKeys.forEach(function (key) {
+        var source = visuals[key] || visuals.irregular || visuals.tall || visuals.wide;
+        treeTextures[key] = source ? crearTexturaImagenPark3D(source) : crearTexturaCanvasPark3D('canopy');
+        treeMaterials[key] = new THREE.MeshBasicMaterial({
+            map: treeTextures[key],
+            transparent: true,
+            alphaTest: .13,
+            side: THREE.DoubleSide,
+            depthWrite: true,
+            toneMapped: false
+        });
+    });
+    var canopyTexture = crearTexturaCanvasPark3D('canopy');
+    var canopyMat = new THREE.MeshBasicMaterial({ map: canopyTexture, transparent: true, depthWrite: false, toneMapped: false });
+    var shadowTexture = crearTexturaCanvasPark3D('shadow');
+    var shadowMat = new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false, toneMapped: false });
+    var planeGeom = new THREE.PlaneGeometry(1, 1);
+    var canopyGeom = new THREE.CircleGeometry(1, 32);
+    var shadowGeom = new THREE.PlaneGeometry(1, 1);
+    shadowGeom.rotateX(-Math.PI / 2);
+    canopyGeom.rotateX(-Math.PI / 2);
+    var canopySegments = [];
+    var canopySteps = 28;
+    var conteoTexturas = { wide: 0, tall: 0, slender: 0, young: 0, irregular: 0, round: 0 };
 
-    arboles.forEach(function (tree) {
+    arboles.forEach(function (tree, index) {
         var lp = toLocal(tree.geometry.coordinates);
         var pr = tree.properties || {};
-        var altura = limitarPark3D(numeroPark3D(pr.ALTURA_TOT, 7), 2.5, 28);
-        var alturaPunta = limitarPark3D(numeroPark3D(pr.ALTURA_PUN, altura * .42), .8, altura * .78);
-        var dapCm = numeroPark3D(pr.DAP, 25);
-        var copaEWRaw = sumaPositivaPark3D(numeroPark3D(pr['X1___E__'], NaN), numeroPark3D(pr['X2__O_'], NaN));
-        var copaNSRaw = sumaPositivaPark3D(numeroPark3D(pr['Y1__N_'], NaN), numeroPark3D(pr['Y2__S_'], NaN));
-        var copaEW = limitarPark3D(Number.isFinite(copaEWRaw) ? copaEWRaw : 4.8, 1.4, 18);
-        var copaNS = limitarPark3D(Number.isFinite(copaNSRaw) ? copaNSRaw : 4.8, 1.4, 18);
-        var tipoArbol = clasificarArbolPark3D(pr);
-        conteoTipos[tipoArbol]++;
+        var metricas = metricasArbolPark3D(pr);
+        var key = elegirTexturaArbolPark3D(pr, metricas, index);
+        conteoTexturas[key] = (conteoTexturas[key] || 0) + 1;
+        var root = new THREE.Group();
+        root.position.set(lp.x, 0, lp.z);
+        root.rotation.y = anguloSemillaPark3D(pr);
 
-        var lod = new THREE.LOD();
-        lod.position.set(lp.x, 0, lp.z);
-        lod.rotation.y = anguloSemillaPark3D(pr);
-        if (templates && templates[tipoArbol]) {
-            var tpl = templates[tipoArbol];
-            var high = tpl.root.clone(true);
-            var sx = copaEW / Math.max(tpl.size.x, .01);
-            var sy = altura / Math.max(tpl.size.y, .01);
-            var sz = copaNS / Math.max(tpl.size.z, .01);
-            high.scale.set(sx, sy, sz);
-            high.position.y = -tpl.box.min.y * sy;
-            high.traverse(function (obj) {
-                if (obj.isMesh) {
-                    obj.castShadow = true;
-                    obj.receiveShadow = false;
-                }
-            });
-            lod.addLevel(high, 0);
+        var ancho = limitarPark3D((metricas.ew + metricas.ns) / 2, 1.4, 20);
+        var planoA = new THREE.Mesh(planeGeom, treeMaterials[key]);
+        planoA.position.y = metricas.altura / 2;
+        planoA.scale.set(ancho, metricas.altura, 1);
+        planoA.renderOrder = 2;
+        root.add(planoA);
+
+        var planoB = planoA.clone();
+        planoB.rotation.y = Math.PI / 2;
+        root.add(planoB);
+
+        var copaSuperior = new THREE.Mesh(canopyGeom, canopyMat);
+        copaSuperior.position.y = metricas.libre + Math.max(1.1, (metricas.altura - metricas.libre) * .52);
+        copaSuperior.scale.set(metricas.ew / 2, metricas.ns / 2, 1);
+        copaSuperior.renderOrder = 1;
+        root.add(copaSuperior);
+
+        var sombra = new THREE.Mesh(shadowGeom, shadowMat);
+        sombra.position.y = .025;
+        sombra.scale.set(metricas.ew * 1.15, metricas.ns * .8, 1);
+        root.add(sombra);
+        group.add(root);
+
+        for (var s = 0; s < canopySteps; s++) {
+            var a1 = s / canopySteps * Math.PI * 2;
+            var a2 = (s + 1) / canopySteps * Math.PI * 2;
+            canopySegments.push(
+                lp.x + Math.cos(a1) * metricas.ew / 2, .1, lp.z + Math.sin(a1) * metricas.ns / 2,
+                lp.x + Math.cos(a2) * metricas.ew / 2, .1, lp.z + Math.sin(a2) * metricas.ns / 2
+            );
         }
-        lod.addLevel(crearArbolSimplePark3D(altura, copaEW, copaNS, alturaPunta, dapCm), templates && templates[tipoArbol] ? distanciaLod : 0);
-        group.add(lod);
     });
 
-    setTextoPark3D('park3d-model-info', 'GLB: ' + conteoTipos.round + ' frondosos · ' + conteoTipos.column + ' verticales · ' + conteoTipos.conifer + ' coníferas · ' + conteoTipos.palm + ' palmeras');
-    var centrar = function () {
-        camera.position.set(span * .72, span * .72, span * .88);
-        controls.target.set(0, 0, 0);
-        controls.minDistance = span * .20;
+    var metricGeom = new THREE.BufferGeometry();
+    metricGeom.setAttribute('position', new THREE.Float32BufferAttribute(canopySegments, 3));
+    var metricMat = new THREE.LineBasicMaterial({ color: 0xd18b22, transparent: true, opacity: .62 });
+    var metricLayer = new THREE.LineSegments(metricGeom, metricMat);
+    metricLayer.visible = false;
+    scene.add(metricLayer);
+
+    setTextoPark3D('park3d-model-info', 'Realista: ' + arboles.length.toLocaleString('es-PE') + ' árboles · texturas bajo demanda · sin carga GLB externa');
+
+    var vistaGeneral = function () {
+        camera.position.set(span * .92, Math.max(24, span * .32), span * 1.18);
+        controls.target.set(0, Math.min(7, span * .035), 0);
+        controls.minDistance = span * .12;
         controls.maxDistance = span * 4.2;
         controls.update();
     };
-    centrar();
+    var vistaPeatonal = function () {
+        camera.position.set(span * .72, 3.2, span * .75);
+        controls.target.set(0, 4.2, 0);
+        controls.update();
+    };
+    vistaGeneral();
+
     var reset = document.getElementById('park3d-reset');
-    if (reset) reset.onclick = centrar;
+    if (reset) reset.onclick = vistaGeneral;
+    var pedestrian = document.getElementById('park3d-pedestrian');
+    if (pedestrian) pedestrian.onclick = vistaPeatonal;
+    var canopyBtn = document.getElementById('park3d-toggle-canopy');
+    if (canopyBtn) {
+        canopyBtn.classList.remove('active');
+        canopyBtn.textContent = 'Copas métricas';
+        canopyBtn.onclick = function () {
+            metricLayer.visible = !metricLayer.visible;
+            canopyBtn.classList.toggle('active', metricLayer.visible);
+            canopyBtn.textContent = metricLayer.visible ? 'Ocultar copas' : 'Copas métricas';
+        };
+    }
 
     var raf = null;
     var animate = function () {
@@ -1223,29 +1466,34 @@ async function construirEscenaParque3D(feature, arboles) {
         renderer.setSize(w, h);
     };
     window.addEventListener('resize', onResize);
-    parque3DEstado = { scene: scene, renderer: renderer, controls: controls, raf: raf, onResize: onResize };
+    parque3DEstado = {
+        scene: scene,
+        renderer: renderer,
+        controls: controls,
+        raf: raf,
+        onResize: onResize,
+        extraTextures: Object.values(treeTextures).concat([grass, canopyTexture, shadowTexture]),
+        sharedGeometries: [planeGeom, canopyGeom, shadowGeom, metricGeom],
+        sharedMaterials: Object.values(treeMaterials).concat([groundMat, edgeMat, canopyMat, shadowMat, metricMat])
+    };
 }
 
-function abrirParque3D(feature) {
+async function abrirParque3D(feature) {
     var targetFeature = feature || parque3DSeleccionado;
     if (!targetFeature) return;
-    if (typeof THREE === 'undefined' || typeof THREE.OrbitControls === 'undefined') {
-        alert('No se pudo cargar la vista 3D. Revisa la conexión a internet para cargar Three.js.');
-        return;
-    }
 
     parque3DSeleccionado = targetFeature;
     var p = targetFeature.getProperties();
-    var arboles = arbolesParaParque3D(targetFeature);
     setTextoPark3D('park3d-code', p['CÓDIGO'] || ('ID ' + (p.ID || '—')));
     setTextoPark3D('park3d-title', p.NOMBRE || 'Vista 3D del parque');
     setTextoPark3D('park3d-area', formatoAreaPark3D(p['ÁREA']));
-    setTextoPark3D('park3d-trees', arboles.length.toLocaleString('es-PE'));
+    setTextoPark3D('park3d-trees', 'Cargando…');
     setTextoPark3D('park3d-green-actual', porcentajePark3D(p['%OCUP_VERD']));
     setTextoPark3D('park3d-green-min', p['AREA VERDE'] || '—');
     setTextoPark3D('park3d-gray-actual', porcentajePark3D(p['%OCUP_GRIS']));
     setTextoPark3D('park3d-gray-max', p.O_GRIS_MAX || '—');
     setTextoPark3D('park3d-tree-cover', p.CO_ARBOREA || '—');
+    iniciarCalculadoraPark3D(targetFeature);
 
     var modal = document.getElementById('park3d-modal');
     var loading = document.getElementById('park3d-loading');
@@ -1254,19 +1502,23 @@ function abrirParque3D(feature) {
         modal.setAttribute('aria-hidden', 'false');
     }
     if (loading) {
-        loading.textContent = 'Cargando arbolado GLB…';
+        loading.textContent = 'Cargando motor 3D, árboles y texturas…';
         loading.classList.remove('hidden');
     }
 
-    requestAnimationFrame(async function () {
-        try {
+    try {
+        await cargarDependenciasParque3D();
+        var arboles = arbolesParaParque3D(targetFeature);
+        setTextoPark3D('park3d-trees', arboles.length.toLocaleString('es-PE'));
+        if (loading) loading.textContent = 'Construyendo vegetación realista…';
+        requestAnimationFrame(async function () {
             await construirEscenaParque3D(targetFeature, arboles);
             if (loading) loading.classList.add('hidden');
-        } catch (error) {
-            console.error(error);
-            if (loading) loading.textContent = 'No se pudo construir la vista 3D.';
-        }
-    });
+        });
+    } catch (error) {
+        console.error(error);
+        if (loading) loading.textContent = 'No se pudo cargar la vista 3D.';
+    }
 }
 
 window.abrirParque3DSeleccionado = function () {
@@ -1535,8 +1787,9 @@ function areaFeatureParaPrioridad(feature) {
 
 function featureInteractivaEnPixel(pixel, hitTolerance) {
     var candidatos = [];
+    var pixelBusqueda = pixelOriginalDesdeVistaInclinada(pixel);
 
-    map.forEachFeatureAtPixel(pixel, function (feature, layer) {
+    map.forEachFeatureAtPixel(pixelBusqueda, function (feature, layer) {
         var tipo = feature && feature.get('__tipo');
         if (!feature || layer === layerHighlight || tipo === 'manzana' || tipo === 'limite-distrital') return;
 
@@ -1559,14 +1812,23 @@ function featureInteractivaEnPixel(pixel, hitTolerance) {
 
 map.on('singleclick', function (evt) {
     if (document.body.classList.contains('streetview-targeting')) return;
-    var feature = featureInteractivaEnPixel(evt.pixel, 5);
-    mostrarFicha(feature, evt.coordinate);
+    var feature = featureInteractivaEnPixel(evt.pixel, inclinacionMapaActiva ? 9 : 5);
+    var pixelBusqueda = pixelOriginalDesdeVistaInclinada(evt.pixel);
+    mostrarFicha(feature, map.getCoordinateFromPixel(pixelBusqueda));
 });
 
+var pointerMovePendiente = null;
+var pointerMoveRAF = null;
 map.on('pointermove', function (evt) {
     if (evt.dragging) return;
-    var hit = featureInteractivaEnPixel(evt.pixel, 5);
-    map.getViewport().classList.toggle('is-hovering', hit);
+    pointerMovePendiente = evt.pixel;
+    if (pointerMoveRAF) return;
+    pointerMoveRAF = requestAnimationFrame(function () {
+        pointerMoveRAF = null;
+        if (!pointerMovePendiente) return;
+        var hit = featureInteractivaEnPixel(pointerMovePendiente, inclinacionMapaActiva ? 8 : 4);
+        map.getViewport().classList.toggle('is-hovering', !!hit);
+    });
 });
 
 // ==========================================

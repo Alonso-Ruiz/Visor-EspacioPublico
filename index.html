@@ -128,6 +128,8 @@
                     <h2 id="park3d-title">Vista 3D del parque</h2>
                 </div>
                 <div class="park3d-actions">
+                    <button type="button" class="park3d-ghost-btn" id="park3d-toggle-canopy">Copas métricas</button>
+                    <button type="button" class="park3d-ghost-btn" id="park3d-pedestrian">Vista peatonal</button>
                     <button type="button" class="park3d-ghost-btn" id="park3d-reset">Recentrar</button>
                     <button type="button" class="park3d-close-btn" id="park3d-close" aria-label="Cerrar vista 3D">×</button>
                 </div>
@@ -148,12 +150,46 @@
                     <div class="park3d-stat"><span>Gris máximo</span><strong id="park3d-gray-max">—</strong></div>
                     <div class="park3d-stat"><span>Cobertura arbórea objetivo</span><strong id="park3d-tree-cover">—</strong></div>
                     <div class="park3d-divider"></div>
-                    <div id="park3d-model-info" class="park3d-model-info">Modelos GLB optimizados</div>
+                    <div id="park3d-model-info" class="park3d-model-info">Vegetación realista · carga bajo demanda</div>
+                    <section class="park3d-calculator" id="park3d-calculator">
+                        <div class="park3d-calc-head">
+                            <div>
+                                <span class="park3d-micro">Simulador reglamentario</span>
+                                <h3>Índices de ocupación</h3>
+                            </div>
+                            <button type="button" class="park3d-mini-btn" id="park3d-reset-calc">Usar situación actual</button>
+                        </div>
+                        <p class="park3d-calc-intro">Ingresa áreas de una propuesta. El visor calcula porcentajes e índice de ocupación y los compara con los parámetros del parque.</p>
+                        <div class="park3d-calc-grid">
+                            <label><span>Área verde propuesta</span><div><input id="park3d-calc-green" type="number" min="0" step="1"><b>m²</b></div></label>
+                            <label><span>Área gris propuesta</span><div><input id="park3d-calc-gray" type="number" min="0" step="1"><b>m²</b></div></label>
+                            <label><span>Huella techada propuesta</span><div><input id="park3d-calc-footprint" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                            <label><span>Uso de soporte</span><div><input id="park3d-calc-support" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                            <label><span>Uso recreativo</span><div><input id="park3d-calc-recreation" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                            <label><span>Uso comercial</span><div><input id="park3d-calc-commercial" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                            <label><span>Otros usos</span><div><input id="park3d-calc-other" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                        </div>
+                        <div class="park3d-calc-results">
+                            <div><span>Verde calculado</span><strong id="park3d-calc-green-pct">—</strong><em id="park3d-calc-green-status"></em></div>
+                            <div><span>Gris calculado</span><strong id="park3d-calc-gray-pct">—</strong><em id="park3d-calc-gray-status"></em></div>
+                            <div><span>Índice de ocupación</span><strong id="park3d-calc-io">—</strong><em id="park3d-calc-io-status"></em></div>
+                            <div><span>Huella efectiva máxima</span><strong id="park3d-calc-effective-footprint">—</strong><em>menor entre IO × área y tope absoluto</em></div>
+                            <div><span>Superficie sin asignar</span><strong id="park3d-calc-unassigned">—</strong><em id="park3d-calc-allocation-status"></em></div>
+                        </div>
+                        <div class="park3d-calc-use-results" id="park3d-calc-use-results"></div>
+                        <div class="park3d-formula-box">
+                            <strong>Fórmulas aplicadas</strong>
+                            <code>% = área propuesta / área total × 100</code>
+                            <code>IO = huella techada / área total</code>
+                            <code>Huella máx. efectiva = mín.(IO normativo × área total, huella máx. absoluta)</code>
+                        </div>
+                    </section>
                     <div class="park3d-legend">
                         <span><i class="park3d-swatch park3d-swatch--ground"></i> Superficie del parque</span>
-                        <span><i class="park3d-swatch park3d-swatch--canopy"></i> Arbolado GLB según tipología</span>
+                        <span><i class="park3d-swatch park3d-swatch--canopy"></i> Arbolado fotorealista según inventario</span>
+                        <span><i class="park3d-swatch park3d-swatch--metric"></i> Envolvente métrica de copa</span>
                     </div>
-                    <p class="park3d-footnote">Los modelos GLB se escalan con la altura total y las dimensiones E–O / N–S disponibles en el inventario. A distancia se activa una geometría simplificada para mantener el rendimiento.</p>
+                    <p class="park3d-footnote">Las texturas y datos del arbolado se cargan recién al abrir esta vista para no ralentizar el mapa principal.</p>
                 </aside>
             </div>
         </div>
@@ -195,7 +231,7 @@
 
                 <details class="legend-group legend-group--atu" open>
                     <summary>
-                        <input type="checkbox" id="chk-atu" checked>
+                        <input type="checkbox" id="chk-atu">
                         <span>Áreas de Tratamiento Urbano</span>
                     </summary>
                     <div class="legend-subgroup legend-subgroup--child">
@@ -481,10 +517,6 @@
     <script src="layers/ALAMEDASDESUBMANZANAS_2.js"></script>
     <script src="layers/BORDEDESUBMANZANAYREALIBRE_3.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="data/rboles_parque_0.js"></script>
     <script src="assets/js/app.js"></script>
     <script src="assets/js/streetview.js"></script>
 </body>
