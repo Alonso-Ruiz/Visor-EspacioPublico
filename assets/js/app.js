@@ -167,6 +167,7 @@ function idLeyendaParaFeature(feature) {
     if (tipo === 'surco-faja') return 'chk-surco-faja-marginal';
     if (tipo === 'surco-uso-restringido') return 'chk-surco-usos-restringidos';
     if (tipo === 'rio-surco') return idLeyendaParaRioSurco(feature);
+    if (tipo === 'bien-cultural-huaca') return 'chk-huaca-san-borja';
     if (tipo === 'epi') return featurePerteneceALayer(feature, vectorEpiLimatambo) ? 'chk-epi-lt' : 'chk-epi-tsb';
 
     return null;
@@ -220,6 +221,10 @@ var parque3DSeleccionado = null;
 var parque3DCacheArboles = new Map();
 var parque3DEstado = null;
 var parque3DDependenciasPromise = null;
+var arbolesMapaPromise = null;
+var arbolesMapaCargados = false;
+var arbolSeleccionadoId = null;
+var overlayArbol = null;
 
 function cerrarFicha() {
     ficha.style.display = 'none';
@@ -272,6 +277,13 @@ var styleSurcoFajaMarginal = new ol.style.Style({ stroke: new ol.style.Stroke({ 
 var styleSurcoUsoRestringido = new ol.style.Style({
     stroke: new ol.style.Stroke({ color: '#065f46', width: 2, lineDash: [8, 5] })
 });
+var styleHuacaSanBorja = new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: '#815000', width: 2 }),
+    fill: new ol.style.Fill({ color: 'rgba(129, 80, 0, 0.34)' })
+});
+if (typeof style_Bienes_culturales_Inmuebles_0 === 'function') {
+    styleHuacaSanBorja = style_Bienes_culturales_Inmuebles_0;
+}
 
 var ATU_STYLE_CONFIG = {
     'Conservación 1': { id: 'chk-atu-conservacion-1', parent: 'chk-atu-conservacion', color: '81, 210, 21' },
@@ -439,6 +451,51 @@ var styleRedVialFn = function (feature, resolution) {
 };
 
 var styleHighlight = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#3b82f6', width: 5 }), fill: new ol.style.Fill({ color: 'rgba(59, 130, 246, 0.3)' }) });
+var ARBOLES_ZOOM_VISIBLE = 17;
+var styleArbolCache = new WeakMap();
+var styleArbolCopa = function () {
+    return null;
+};
+var styleArbolPunto = function (feature, resolution) {
+    var zoom = map.getView().getZoomForResolution(resolution);
+    if (zoom < ARBOLES_ZOOM_VISIBLE) return null;
+    var seleccionado = feature.get('__treeSelected');
+    var bucket = Math.round(zoom * 2) / 2;
+    var cache = styleArbolCache.get(feature);
+    if (!cache) {
+        cache = Object.create(null);
+        styleArbolCache.set(feature, cache);
+    }
+    var cacheKey = (seleccionado ? '1' : '0') + ':' + bucket;
+    if (cache[cacheKey]) return cache[cacheKey];
+
+    var metricas = feature.get('__metricasArbol') || metricasArbolPark3D(feature.getProperties());
+    var radioMetros = Math.max(.9, (metricas.ew + metricas.ns) / 4);
+    var radioPx = Math.max(3.5, Math.min(24, radioMetros / resolution));
+    var puntoPx = bucket >= 18.5 ? 3 : 2;
+    cache[cacheKey] = [
+        new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: seleccionado ? radioPx + 2 : radioPx,
+                fill: new ol.style.Fill({
+                    color: seleccionado ? 'rgba(255, 207, 63, 0.48)' : 'rgba(90, 138, 66, 0.38)'
+                }),
+                stroke: new ol.style.Stroke({
+                    color: seleccionado ? '#e0a53a' : 'rgba(63, 107, 48, 0.55)',
+                    width: seleccionado ? 1.6 : 0.7
+                })
+            })
+        }),
+        new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: seleccionado ? puntoPx + 1 : puntoPx,
+                fill: new ol.style.Fill({ color: seleccionado ? '#274b1c' : 'rgba(39, 75, 28, 0.88)' }),
+                stroke: new ol.style.Stroke({ color: '#ffffff', width: seleccionado ? 1.2 : 0.7 })
+            })
+        })
+    ];
+    return cache[cacheKey];
+};
 
 var satSource = new ol.source.XYZ({ url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', maxZoom: 22 });
 var googleSat = new ol.layer.Tile({ source: satSource, opacity: 0.3 });
@@ -467,19 +524,39 @@ var vectorSurcoUsoRestringido = new ol.layer.Vector({ source: new ol.source.Vect
 var vectorSurcoFajaMarginal = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Fajamarginal_0 !== 'undefined' ? crearFeatures(json_Fajamarginal_0, 'surco-faja') : [] }), style: styleSurcoFajaMarginal, zIndex: 9 });
 var vectorSurcoZonaReglamentada = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Zonareglamentada_2 !== 'undefined' ? crearFeatures(json_Zonareglamentada_2, 'surco-zona-reglamentada') : [] }), style: styleSurcoZonaReglamentada, zIndex: 10 });
 var vectorRioSurco = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_LneaderoSurco_3 !== 'undefined' ? crearFeatures(json_LneaderoSurco_3, 'rio-surco') : [] }), style: styleRioSurcoFn, zIndex: 15 });
+var featuresHuacaSanBorja = typeof json_Bienes_culturales_Inmuebles_0 !== 'undefined'
+    ? crearFeatures(json_Bienes_culturales_Inmuebles_0, 'bien-cultural-huaca').filter(function (feature) {
+        return normalizarTextoFiltro(feature.get('NOMBRE')).includes('huaca san borja');
+    })
+    : [];
+var vectorHuacaSanBorja = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresHuacaSanBorja }), style: styleHuacaSanBorja, zIndex: 11 });
 var vectorJardinesAislamiento = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Jardndeaislamiento_1 !== 'undefined' ? crearFeatures(json_Jardndeaislamiento_1, 'jardin-aislamiento') : [] }), style: styleJardinesAislamiento, zIndex: 12 });
 var vectorParques = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 12 });
 var vectorRedVial = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? crearFeatures(json_red_vial_4, 'via') : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
+var sourceArbolesCopa = new ol.source.Vector();
+var sourceArbolesPunto = new ol.source.Vector();
+var vectorArbolesCopa = new ol.layer.Vector({ source: sourceArbolesCopa, style: styleArbolCopa, minZoom: ARBOLES_ZOOM_VISIBLE, zIndex: 17 });
+var vectorArbolesPunto = new ol.layer.Vector({ source: sourceArbolesPunto, style: styleArbolPunto, minZoom: ARBOLES_ZOOM_VISIBLE, renderBuffer: 48, updateWhileInteracting: false, updateWhileAnimating: false, zIndex: 18 });
 
 var sourceHighlight = new ol.source.Vector();
 var layerHighlight = new ol.layer.Vector({ source: sourceHighlight, style: styleHighlight, zIndex: 20 });
 
 var map = new ol.Map({
     target: 'map', renderer: ['webgl', 'canvas'],
-    layers: [googleSat, vectorAtu, vectorSectores, vectorSubsectores, vectorSurcoUsoRestringido, vectorSurcoFajaMarginal, vectorSurcoZonaReglamentada, vectorManzanas, vectorManzanasLimatambo, vectorEpiLimatambo, vectorEpiTorres, vectorServidumbres, vectorUrbJuan, vectorJuanAlamedas, vectorJuanPasajesCalles, vectorParques, vectorJardinesAislamiento, vectorRedVial, vectorRioSurco, vectorLimiteDistrital, layerHighlight],
+    layers: [googleSat, vectorAtu, vectorSectores, vectorSubsectores, vectorSurcoUsoRestringido, vectorSurcoFajaMarginal, vectorSurcoZonaReglamentada, vectorHuacaSanBorja, vectorManzanas, vectorManzanasLimatambo, vectorEpiLimatambo, vectorEpiTorres, vectorServidumbres, vectorUrbJuan, vectorJuanAlamedas, vectorJuanPasajesCalles, vectorParques, vectorJardinesAislamiento, vectorRedVial, vectorRioSurco, vectorLimiteDistrital, vectorArbolesCopa, vectorArbolesPunto, layerHighlight],
     view: new ol.View({ center: ol.proj.fromLonLat([-76.9933, -12.0951]), zoom: 14, minZoom: 13, maxZoom: 22 }),
     controls: [new ol.control.Zoom(), new ol.control.ScaleLine({ units: 'metric' })]
 });
+
+var arbolPopupEl = document.createElement('div');
+arbolPopupEl.className = 'tree-popover ol-tree-popover hidden';
+overlayArbol = new ol.Overlay({
+    element: arbolPopupEl,
+    offset: [0, -12],
+    positioning: 'bottom-center',
+    stopEvent: true
+});
+map.addOverlay(overlayArbol);
 
 // NORTE Y CENTRADO DE ROTACIÓN
 var northBtn = document.getElementById('btn-north');
@@ -512,10 +589,10 @@ function moverRotacionMapaDerecho(event) {
     map.getView().setRotation(map.getView().getRotation() + dx * 0.004);
     inclinacionVisual = Math.max(0, Math.min(45, inclinacionVisual + dy * 0.25));
     var factorInclinacion = inclinacionVisual / 45;
-    var escalaInclinacion = 1 + factorInclinacion * 1.15;
+    var escalaInclinacion = 1 + factorInclinacion * .55;
     map.getViewport().style.setProperty('--map-pitch', inclinacionVisual + 'deg');
     map.getViewport().style.setProperty('--map-pitch-scale', escalaInclinacion.toFixed(2));
-    map.getViewport().style.setProperty('--map-pitch-shift', (-17 * factorInclinacion).toFixed(1) + '%');
+    map.getViewport().style.setProperty('--map-pitch-shift', (4 * factorInclinacion).toFixed(1) + '%');
     map.getViewport().classList.toggle('is-pitched', inclinacionVisual > 1);
     inclinacionMapaActiva = inclinacionVisual > 1;
 }
@@ -562,6 +639,149 @@ function pixelOriginalDesdeVistaInclinada(pixel) {
     }
 }
 
+function ellipsePolygonArbolLonLat(center, radioEW, radioNS, steps) {
+    var lon = center[0];
+    var lat = center[1];
+    var metrosLon = 111320 * Math.cos(lat * Math.PI / 180);
+    var metrosLat = 110540;
+    var ring = [];
+    var total = steps || 28;
+    for (var i = 0; i <= total; i++) {
+        var a = i / total * Math.PI * 2;
+        ring.push([
+            lon + (radioEW * Math.cos(a)) / metrosLon,
+            lat + (radioNS * Math.sin(a)) / metrosLat
+        ]);
+    }
+    return { type: 'Polygon', coordinates: [ring] };
+}
+
+function crearFeatureArbolMapa(tree, index) {
+    var props = tree.properties || {};
+    var coords = tree.geometry && tree.geometry.coordinates;
+    if (!coords || coords.length < 2) return null;
+    var metricas = metricasArbolPark3D(props);
+    var propiedades = Object.assign({}, props, { __tipo: 'arbol', __treeId: index, __metricasArbol: metricas });
+    var punto = formatJSON.readFeature({
+        type: 'Feature',
+        properties: propiedades,
+        geometry: { type: 'Point', coordinates: coords }
+    }, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
+    punto.set('__tipo', 'arbol', true);
+    punto.set('__treeId', index, true);
+    punto.set('__metricasArbol', metricas, true);
+    return { punto: punto };
+}
+
+function poblarArbolesMapa() {
+    if (arbolesMapaCargados || typeof json_rboles_parque_0 === 'undefined') return;
+    var puntos = [];
+    (json_rboles_parque_0.features || []).forEach(function (tree, index) {
+        if (!tree.geometry || tree.geometry.type !== 'Point') return;
+        var features = crearFeatureArbolMapa(tree, index);
+        if (!features) return;
+        puntos.push(features.punto);
+    });
+    sourceArbolesPunto.addFeatures(puntos);
+    arbolesMapaCargados = true;
+}
+
+function asegurarArbolesMapa() {
+    if (arbolesMapaCargados) return Promise.resolve();
+    if (typeof json_rboles_parque_0 !== 'undefined') {
+        poblarArbolesMapa();
+        return Promise.resolve();
+    }
+    if (!arbolesMapaPromise) {
+        arbolesMapaPromise = cargarScriptPark3D('data/rboles_parque_0.js', function () {
+            return typeof json_rboles_parque_0 !== 'undefined';
+        }).then(function () {
+            poblarArbolesMapa();
+        }).catch(function (error) {
+            console.error('No se pudo cargar el inventario de árboles', error);
+        });
+    }
+    return arbolesMapaPromise;
+}
+
+function revisarCargaArbolesPorZoom() {
+    if (map.getView().getZoom() >= ARBOLES_ZOOM_VISIBLE - .2) asegurarArbolesMapa();
+}
+
+map.getView().on('change:resolution', revisarCargaArbolesPorZoom);
+revisarCargaArbolesPorZoom();
+
+function marcarArbolSeleccionado(id) {
+    [sourceArbolesCopa, sourceArbolesPunto].forEach(function (source) {
+        if (arbolSeleccionadoId !== null) {
+            var anterior = source.getFeatures().find(function (feature) { return feature.get('__treeId') === arbolSeleccionadoId; });
+            if (anterior) anterior.set('__treeSelected', false);
+        }
+        if (id !== null) {
+            var actual = source.getFeatures().find(function (feature) { return feature.get('__treeId') === id; });
+            if (actual) actual.set('__treeSelected', true);
+        }
+    });
+    arbolSeleccionadoId = id;
+}
+
+function siluetaArbolSvg(propiedades) {
+    var texto = normalizarPark3D((propiedades.NOMBRE_COM || '') + ' ' + (propiedades.NOMBRE_CIE || ''));
+    if (/palmera|phoenix|washingtonia|arecaceae/.test(texto)) {
+        return '<svg viewBox="0 0 120 100" aria-hidden="true"><path d="M60 44 C40 30 24 30 18 22 C34 26 44 30 56 40 C40 20 30 10 30 4 C46 14 52 26 60 40 C68 26 74 14 90 4 C90 10 80 20 64 40 C76 30 86 26 102 22 C96 30 80 30 60 44 Z" fill="#4f8a3c"/><rect x="57" y="42" width="6" height="48" fill="#7a5b3a"/></svg>';
+    }
+    if (/pino|cipres|casuarina|eucalipto/.test(texto)) {
+        return '<svg viewBox="0 0 120 100" aria-hidden="true"><polygon points="60,7 84,48 36,48" fill="#3d6b34"/><polygon points="60,28 91,78 29,78" fill="#4f8a3c"/><rect x="56" y="72" width="8" height="22" fill="#7a5b3a"/></svg>';
+    }
+    return '<svg viewBox="0 0 120 100" aria-hidden="true"><circle cx="60" cy="37" r="29" fill="#5d9649"/><circle cx="40" cy="46" r="20" fill="#6aa854"/><circle cx="81" cy="48" r="22" fill="#4f8a3c"/><rect x="55" y="58" width="10" height="34" rx="4" fill="#7a5b3a"/></svg>';
+}
+
+function textoValorArbol(valor) {
+    if (valor === null || valor === undefined || String(valor).trim() === '' || String(valor).trim() === '-') return '—';
+    return String(valor);
+}
+
+function htmlSeguroArbol(valor) {
+    return textoValorArbol(valor)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function mostrarPopupArbol(feature, coordinate) {
+    if (!feature) return;
+    var p = feature.getProperties();
+    var id = feature.get('__treeId');
+    marcarArbolSeleccionado(id);
+    var metricas = metricasArbolPark3D(p);
+    var condicion = String(p.CONDICION_ || '').toLowerCase();
+    var condClass = /buen|sano|optim|óptim/.test(condicion) ? 'ok' : (/mal|riesgo|muerto|seco|peligr/.test(condicion) ? 'bad' : 'neutral');
+    arbolPopupEl.innerHTML = ''
+        + '<button class="tree-popover-close" type="button" aria-label="Cerrar">×</button>'
+        + '<div class="tree-popover-top">'
+        + '<div class="tree-popover-sil">' + siluetaArbolSvg(p) + '</div>'
+        + '<div class="tree-popover-title">'
+        + '<strong>' + htmlSeguroArbol(p.NOMBRE_COM || 'Ejemplar') + '</strong>'
+        + '<em>' + htmlSeguroArbol(p.NOMBRE_CIE) + '</em>'
+        + '<span class="tree-popover-badge ' + condClass + '">' + htmlSeguroArbol(p.CONDICION_) + '</span>'
+        + '</div></div>'
+        + '<div class="tree-popover-chips">'
+        + '<div><span>Altura</span><strong>' + valorMetricoPark3D(numeroFlexiblePark3D(p.ALTURA_TOT), ' m') + '</strong></div>'
+        + '<div><span>DAP</span><strong>' + valorMetricoPark3D(numeroFlexiblePark3D(p.DAP), ' cm') + '</strong></div>'
+        + '<div><span>Copa</span><strong>' + recortarNumeroPark3D(metricas.ew) + '×' + recortarNumeroPark3D(metricas.ns) + ' m</strong></div>'
+        + '</div>';
+    arbolPopupEl.classList.remove('hidden');
+    overlayArbol.setPosition(coordinate);
+    var close = arbolPopupEl.querySelector('.tree-popover-close');
+    if (close) close.onclick = function () {
+        arbolPopupEl.classList.add('hidden');
+        overlayArbol.setPosition(undefined);
+        marcarArbolSeleccionado(null);
+    };
+}
+
 function actualizarEstadoLeyendaVial() {
     var movilidadActiva = filtroActivo('chk-movilidad-general');
     var metActiva = movilidadActiva && filtroActivo('chk-vial-met');
@@ -599,7 +819,9 @@ function actualizarEstadoCanalSurco() {
     var naturalActivo = filtroActivo('chk-natural-general');
     var canalActivo = naturalActivo && filtroActivo('chk-canal-surco');
     var canalInput = document.getElementById('chk-canal-surco');
+    var huacaInput = document.getElementById('chk-huaca-san-borja');
     if (canalInput) canalInput.disabled = !naturalActivo;
+    if (huacaInput) huacaInput.disabled = !naturalActivo;
 
     [
         'chk-surco-zona-reglamentada',
@@ -615,6 +837,7 @@ function actualizarEstadoCanalSurco() {
     vectorSurcoZonaReglamentada.setVisible(canalActivo && filtroActivo('chk-surco-zona-reglamentada'));
     vectorSurcoFajaMarginal.setVisible(canalActivo && filtroActivo('chk-surco-faja-marginal'));
     vectorSurcoUsoRestringido.setVisible(canalActivo && filtroActivo('chk-surco-usos-restringidos'));
+    vectorHuacaSanBorja.setVisible(naturalActivo && filtroActivo('chk-huaca-san-borja'));
     vectorRioSurco.changed();
 }
 
@@ -678,7 +901,15 @@ function actualizarEstadoRecreacion() {
         var input = document.getElementById(id);
         if (input) input.disabled = !activo;
     });
-    vectorParques.setVisible(activo && filtroActivo('chk-parques'));
+    var parquesActivos = activo && filtroActivo('chk-parques');
+    vectorParques.setVisible(parquesActivos);
+    vectorArbolesCopa.setVisible(parquesActivos);
+    vectorArbolesPunto.setVisible(parquesActivos);
+    if (!parquesActivos) {
+        if (overlayArbol) overlayArbol.setPosition(undefined);
+        if (arbolPopupEl) arbolPopupEl.classList.add('hidden');
+        marcarArbolSeleccionado(null);
+    }
     vectorJardinesAislamiento.setVisible(activo && filtroActivo('chk-jardines-aislamiento'));
 }
 
@@ -807,7 +1038,8 @@ actualizarEstadoJuan();
     'chk-surco-faja-marginal',
     'chk-surco-usos-restringidos',
     'chk-surco-zona-cubierta',
-    'chk-surco-zona-descubierta'
+    'chk-surco-zona-descubierta',
+    'chk-huaca-san-borja'
 ].forEach(function (id) {
     var input = document.getElementById(id);
     if (input) input.onchange = actualizarEstadoCanalSurco;
@@ -817,6 +1049,22 @@ document.getElementById('sat-opacity').oninput = function (e) {
     var opacity = parseFloat(e.target.value);
     googleSat.setOpacity(opacity);
 };
+
+var satOpacityButton = document.getElementById('btn-sat-opacity');
+var satOpacityPanel = document.getElementById('sat-opacity-panel');
+satOpacityButton.addEventListener('click', function (event) {
+    event.stopPropagation();
+    var isOpen = satOpacityButton.getAttribute('aria-expanded') === 'true';
+    satOpacityButton.setAttribute('aria-expanded', String(!isOpen));
+    satOpacityPanel.hidden = isOpen;
+});
+satOpacityPanel.addEventListener('click', function (event) {
+    event.stopPropagation();
+});
+document.addEventListener('click', function () {
+    satOpacityButton.setAttribute('aria-expanded', 'false');
+    satOpacityPanel.hidden = true;
+});
 
 // ==========================================
 // LÓGICA DE LA FICHA TÉCNICA Y STREET VIEW
@@ -835,6 +1083,114 @@ function numeroSeguro(valor) {
 function rutaPdfVia(propiedades) {
     var codigo = String(propiedades['CÓDIGO'] || propiedades.CODIGO || '').trim();
     return /^[A-Z0-9-]+$/.test(codigo) ? 'pdf/' + encodeURIComponent(codigo) + '.pdf' : '';
+}
+
+var PDF_FICHAS_PARQUES = [
+    '9_de_Julio.pdf', 'Alameda_de_la_Paz.pdf', 'Alameda_de_los_Héroes_1.pdf',
+    'Alameda_de_los_Héroes_2.pdf', 'Alameda_de_los_Héroes_3.pdf', 'Alfredo_Maúrtua.pdf',
+    'Almirante_Grau.pdf', 'Andrés_Avelino_Cáceres.pdf', 'Antonia_Moreno_de_Cáceres.pdf',
+    'Aramburu_y_Salinas.pdf', 'Arq._Fernando_Belaunde_Terry.pdf',
+    'Augusto_Benavides___Polideportivo_Limatambo.pdf', 'Beethoven.pdf', 'Belizario_Suarez.pdf',
+    'Bolivariano.pdf', 'Confraternidad_de_las_Américas.pdf', 'De_la_Felicidad.pdf',
+    'De_la_Inmigración_China.pdf', 'De_la_Mujer.pdf', 'De_los_Periodistas.pdf',
+    'De_Regoyos.pdf', 'Del_Niño.pdf', 'Donatello.pdf', 'Duque_Caxias.pdf', 'El_Greco.pdf',
+    'El_Pinar.pdf', 'Euler.pdf', 'Felipe_Santiago_Salaverry.pdf', 'Héroes_del_Cenepa.pdf',
+    'Ignacio_Marino.pdf', 'Islas_Malvinas.pdf', 'Jacarandá.pdf', 'Japonés.pdf',
+    'Javier_Prado_N°2.pdf', 'Juan_Gris.pdf', 'Juan_Pablo_II.pdf', 'Juan_XXIII.pdf',
+    'Julio_C.Tello.pdf', 'Julio_Ponce_Antúnez_de_Mayolo.pdf', 'La_Amistad.pdf',
+    'La_Junventud.pdf', 'La_Merced.pdf', 'La_Pradera.pdf', 'Lady_Olave_Badem_Powell.pdf',
+    'Las_Begonias.pdf', 'Las_Lomas.pdf', 'Libertador_San_Martín.pdf', 'Los_Sauces.pdf',
+    'María_Teresa_de_la_Cruz_Candamo.pdf', 'Mariano_Bustamante.pdf', 'Mariano_Santos.pdf',
+    'Mario_Moreno.pdf', 'Mario_Polar_Ugarteche.pdf', 'Mariscal_Castilla.pdf',
+    'Medio_Ambiente.pdf', 'Minería.pdf', 'N°3.pdf', 'N°5.pdf',
+    'Nuestra_Señora_de_las_Nubes.pdf', 'Olímpico.pdf', 'Pallardelli.pdf', 'Plumereros.pdf',
+    'Renacimiento.pdf', 'República_de_Grecia.pdf', 'República_de_Uruguay.pdf',
+    'República_Popular_China.pdf', 'San_Borja_Portinari.pdf', 'San_Borja_Ramat_Gam_Israel.pdf',
+    'San_Francisco_de_Borja.pdf', 'San_Francisco.pdf', 'San_Juan_Masias.pdf',
+    'San_Tomás.pdf', 'SEDAPAL.pdf', 'Strauss.pdf', 'Venecia.pdf', 'Veronés.pdf',
+    'Violeta_Correa_de_Belaunde.pdf', 'Virgen_Inmaculada_Concepción.pdf',
+    'Virgen_Maria_Auxiliadora.pdf', 'Virgen_Milagrosa.pdf'
+];
+
+var PDF_FICHAS_RIO_SURCO = {
+    paisaje: 'Paisaje_Arqueológico_Río_Surco_Segmento_3.pdf',
+    calera1: 'Sitio_Arqueológico_La_Calera_Sectores_1.pdf',
+    calera2: 'Sitio_Arqueológico_La_Calera_Sectores_2.pdf',
+    huaca: 'Zona_Arqueológica_Huaca_San_Borja.pdf'
+};
+
+var PDF_FICHAS_PARQUES_POR_CODIGO = {
+    'PR-03': 'Alameda_de_los_Héroes_1.pdf',
+    'PR-20': 'Medio_Ambiente.pdf',
+    'PR-29': 'Ignacio_Marino.pdf',
+    'PR-33': 'Javier_Prado_N°2.pdf',
+    'PR-40': 'La_Junventud.pdf',
+    'PR-57': 'N°3.pdf',
+    'PR-58': 'N°5.pdf',
+    'PR-59': 'Nuestra_Señora_de_las_Nubes.pdf',
+    'PR-69': 'San_Francisco.pdf',
+    'PR-72': 'San_Tomás.pdf',
+    'PR-80': 'San_Juan_Masias.pdf'
+};
+
+function clavePdfFicha(valor) {
+    return String(valor || '')
+        .replace(/\.pdf$/i, '')
+        .replace(/^parque\s+/i, '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/n\s*[°º]/g, 'n')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .replace(/\bn\s+(\d)/g, 'n$1')
+        .replace(/\bn0+(\d)/g, 'n$1');
+}
+
+function rutaArchivoPdf(carpeta, archivo) {
+    return carpeta + '/' + encodeURIComponent(archivo);
+}
+
+function rutaPdfParque(propiedades) {
+    var nombre = String(propiedades.NOMBRE || '').trim();
+    if (!nombre) return '';
+    var codigo = String(propiedades['CÓDIGO'] || propiedades.CODIGO || '').trim();
+    if (PDF_FICHAS_PARQUES_POR_CODIGO[codigo]) {
+        return rutaArchivoPdf('pdf/parques', PDF_FICHAS_PARQUES_POR_CODIGO[codigo]);
+    }
+    var claves = [
+        clavePdfFicha(nombre),
+        clavePdfFicha(nombre.replace(/\bdel\b/gi, 'de')),
+        clavePdfFicha(nombre.replace(/\bde los\b/gi, 'de_los')),
+        clavePdfFicha(nombre.replace(/\bparque\s+de\s+/i, 'de ')),
+        clavePdfFicha(nombre.replace(/^parque\s+(del|de la|de los|de)\s+/i, ''))
+    ];
+    var archivo = PDF_FICHAS_PARQUES.find(function (item) {
+        var claveItem = clavePdfFicha(item);
+        return claves.indexOf(claveItem) !== -1;
+    });
+    return archivo ? rutaArchivoPdf('pdf/parques', archivo) : '';
+}
+
+function rutaPdfRioSurco(tipo, propiedades) {
+    var texto = normalizarPark3D([
+        tipo,
+        propiedades.NOMBRE,
+        propiedades.DESCRIPCIO,
+        propiedades.DESCRIPCION,
+        propiedades.TIPO,
+        propiedades['situación'],
+        propiedades.situacion
+    ].filter(Boolean).join(' '));
+    var archivo = PDF_FICHAS_RIO_SURCO.paisaje;
+    if (/huaca|san borja/.test(texto)) archivo = PDF_FICHAS_RIO_SURCO.huaca;
+    else if (/calera.*2|sectores?\s*2/.test(texto)) archivo = PDF_FICHAS_RIO_SURCO.calera2;
+    else if (/calera/.test(texto)) archivo = PDF_FICHAS_RIO_SURCO.calera1;
+    return rutaArchivoPdf('pdf/rio-surco', archivo);
+}
+
+function botonPdfFicha(url, texto) {
+    return url ? '<a href="' + url + '" target="_blank" rel="noopener noreferrer" class="btn-accion btn-accion--pdf"><i class="fas fa-file-pdf"></i> ' + texto + '</a>' : '';
 }
 
 function enlaceHttpSeguro(valor) {
@@ -1124,6 +1480,8 @@ function cerrarParque3D() {
         modal.classList.add('hidden');
         modal.setAttribute('aria-hidden', 'true');
     }
+    var street = document.getElementById('park3d-street-frame');
+    if (street) street.src = '';
     limpiarEscenaParque3D();
 }
 
@@ -1157,6 +1515,131 @@ function estadoCalculoPark3D(id, ok, nota) {
     el.textContent = (ok === null ? '' : (ok ? 'CUMPLE · ' : 'EXCEDE · ')) + nota;
 }
 
+var PARK3D_PIE_COLORS = {
+    green: '#5a8a42',
+    gray: '#8a8f94',
+    footprint: '#5a4a3a',
+    support: '#6f9fd8',
+    recreation: '#e0a53a',
+    commercial: '#b85fb0',
+    other: '#9a8f80',
+    free: '#dfe6da'
+};
+
+var PARK3D_PIE_LABELS = {
+    green: 'Verde',
+    gray: 'Piso duro',
+    footprint: 'Techado',
+    support: 'Soporte',
+    recreation: 'Recreativo',
+    commercial: 'Comercial',
+    other: 'Otros',
+    free: 'Sin asignar'
+};
+
+function formatoEnteroM2Park3D(valor) {
+    return Number.isFinite(valor) ? Math.round(valor).toLocaleString('es-PE') + ' m²' : '—';
+}
+
+function renderOcupacionPiePark3D(datos) {
+    var svg = document.getElementById('park3d-occ-pie');
+    var leyenda = document.getElementById('park3d-occ-pie-legend');
+    if (!svg || !leyenda) return;
+    var area = datos.area || 1;
+    var asignado = datos.green + datos.gray + datos.footprint + datos.support + datos.recreation + datos.commercial + datos.other;
+    var libre = Math.max(0, area - asignado);
+    var segmentos = [
+        ['green', datos.green],
+        ['gray', Math.max(0, datos.gray - datos.footprint)],
+        ['footprint', datos.footprint],
+        ['support', datos.support],
+        ['recreation', datos.recreation],
+        ['commercial', datos.commercial],
+        ['other', datos.other],
+        ['free', libre]
+    ].filter(function (item) { return item[1] > 0; });
+    var cx = 90, cy = 90, r = 78;
+    var angle0 = -Math.PI / 2;
+    var paths = [];
+    if (!segmentos.length || asignado <= 0) {
+        paths.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + PARK3D_PIE_COLORS.free + '"/>');
+    } else {
+        segmentos.forEach(function (item) {
+            var key = item[0];
+            var valor = item[1];
+            var frac = Math.min(1, valor / area);
+            var angle1 = angle0 + frac * Math.PI * 2;
+            var x0 = cx + r * Math.cos(angle0);
+            var y0 = cy + r * Math.sin(angle0);
+            var x1 = cx + r * Math.cos(angle1);
+            var y1 = cy + r * Math.sin(angle1);
+            var big = frac > .5 ? 1 : 0;
+            if (frac >= .999) {
+                paths.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + PARK3D_PIE_COLORS[key] + '"/>');
+            } else {
+                paths.push('<path d="M' + cx + ',' + cy + ' L' + x0.toFixed(2) + ',' + y0.toFixed(2) + ' A' + r + ',' + r + ' 0 ' + big + ',1 ' + x1.toFixed(2) + ',' + y1.toFixed(2) + ' Z" fill="' + PARK3D_PIE_COLORS[key] + '"/>');
+            }
+            angle0 = angle1;
+        });
+    }
+    svg.innerHTML = paths.join('')
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="41" fill="#fff"/>'
+        + '<text x="' + cx + '" y="' + (cy - 4) + '" text-anchor="middle" font-size="13" font-weight="700" fill="#16261e">' + Math.round(area).toLocaleString('es-PE') + '</text>'
+        + '<text x="' + cx + '" y="' + (cy + 12) + '" text-anchor="middle" font-size="9" fill="#5d6b62">m² totales</text>';
+    leyenda.innerHTML = segmentos.map(function (item) {
+        var key = item[0];
+        var valor = item[1];
+        return '<span><i style="background:' + PARK3D_PIE_COLORS[key] + '"></i>' + PARK3D_PIE_LABELS[key] + ' <b>' + Math.round(valor / area * 100) + '%</b></span>';
+    }).join('');
+}
+
+function renderConsultaPark3D(feature, datos) {
+    var card = document.getElementById('park3d-verdict-card');
+    if (!card) return;
+    var title = document.getElementById('park3d-verdict-title');
+    var text = document.getElementById('park3d-verdict-text');
+    var icon = document.getElementById('park3d-verdict-icon');
+    var list = document.getElementById('park3d-allow-list');
+    var p = feature.getProperties ? feature.getProperties() : {};
+    var problemas = [];
+    if (datos.greenShort) problemas.push('el área verde queda por debajo del mínimo normativo');
+    if (datos.grayOverLimit) problemas.push('el piso duro supera el máximo permitido');
+    if (datos.footOver) problemas.push('el área techada supera el tope de ocupación');
+    if (!datos.anyInput) {
+        card.className = 'park3d-verdict-card neutral';
+        if (icon) icon.textContent = '–';
+        if (title) title.textContent = 'Sin propuesta ingresada';
+        if (text) text.textContent = 'Ingresa las áreas propuestas para evaluar su conformidad con los parámetros normativos del parque.';
+    } else if (problemas.length) {
+        card.className = 'park3d-verdict-card bad';
+        if (icon) icon.textContent = '×';
+        if (title) title.textContent = 'No conforme con la norma';
+        if (text) text.textContent = 'La propuesta no cumple: ' + problemas.join('; ') + '. Revisa las áreas señaladas.';
+    } else {
+        card.className = 'park3d-verdict-card ok';
+        if (icon) icon.textContent = '✓';
+        if (title) title.textContent = 'Conforme con la norma';
+        if (text) text.textContent = 'La propuesta se encuentra dentro de los parámetros de ocupación establecidos para este parque.';
+    }
+    if (!list) return;
+    var rows = [];
+    if (Number.isFinite(datos.minGreen)) rows.push(['Área verde mínima a conservar', formatoEnteroM2Park3D(datos.area * datos.minGreen / 100), 'propuesto: ' + formatoEnteroM2Park3D(datos.green)]);
+    if (Number.isFinite(datos.maxGray)) rows.push(['Piso duro máximo', formatoEnteroM2Park3D(datos.area * datos.maxGray / 100), 'propuesto: ' + formatoEnteroM2Park3D(datos.gray)]);
+    if (datos.effectiveFinite !== null) rows.push(['Área techada máxima', formatoEnteroM2Park3D(datos.effective), 'propuesto: ' + formatoEnteroM2Park3D(datos.footprint)]);
+    [
+        ['Servicios de apoyo · máximo', p.SOPORTE],
+        ['Uso recreativo · máximo', p.RECREATIVO],
+        ['Uso comercial · máximo', p.COMERCIAL],
+        ['Otros usos · máximo', p.OTR_USOS]
+    ].forEach(function (item) {
+        var max = porcentajeNumeroPark3D(item[1]);
+        if (Number.isFinite(max) && max > 0) rows.push([item[0], formatoEnteroM2Park3D(datos.area * max / 100), '']);
+    });
+    list.innerHTML = rows.map(function (row) {
+        return '<div class="park3d-allow-row"><span>' + row[0] + '</span><strong>' + row[1] + (row[2] ? '<em>' + row[2] + '</em>' : '') + '</strong></div>';
+    }).join('');
+}
+
 function calcularOcupacionPark3D(feature) {
     var p = feature.getProperties ? feature.getProperties() : {};
     var area = numeroPositivoPark3D(p['ÁREA']) || 0;
@@ -1184,6 +1667,9 @@ function calcularOcupacionPark3D(feature) {
     var effective = Math.min(byIO, Number.isFinite(absMax) ? absMax : Infinity);
     var effectiveFinite = Number.isFinite(effective) ? effective : null;
     var unassigned = area - green - gray;
+    var greenShort = Number.isFinite(minGreen) && greenPct < minGreen;
+    var grayOverLimit = Number.isFinite(maxGray) && grayPct > maxGray;
+    var footOver = Number.isFinite(ioMax) && effectiveFinite !== null && footprint > effective;
 
     setTextoPark3D('park3d-calc-green-pct', recortarNumeroPark3D(greenPct) + '%');
     setTextoPark3D('park3d-calc-gray-pct', recortarNumeroPark3D(grayPct) + '%');
@@ -1218,6 +1704,37 @@ function calcularOcupacionPark3D(feature) {
             return '<div class="park3d-calc-use-row"><span>' + item[0] + '</span><strong>' + recortarNumeroPark3D(pct) + '% / ' + (Number.isFinite(max) ? recortarNumeroPark3D(max) + '%' : '—') + '</strong><em class="' + (ok === null ? '' : (ok ? 'ok' : 'bad')) + '">' + (ok === null ? '—' : (ok ? 'CUMPLE' : 'EXCEDE')) + '</em></div>';
         }).join('');
     }
+    var overlay = document.getElementById('park3d-calc-overlay-warn');
+    if (overlay) {
+        var problemas = [];
+        if (greenShort) problemas.push('área verde por debajo del mínimo');
+        if (grayOverLimit) problemas.push('piso duro sobre el máximo');
+        if (footOver) problemas.push('área techada sobre el tope');
+        overlay.className = problemas.length ? 'park3d-status-box warn' : 'park3d-status-box ok';
+        overlay.textContent = problemas.length
+            ? 'No conforme: ' + problemas.join(' · ') + '.'
+            : 'Conforme: la propuesta respeta el mínimo de área verde y los topes de ocupación.';
+    }
+    var datos = {
+        area: area,
+        green: green,
+        gray: gray,
+        footprint: footprint,
+        support: support,
+        recreation: recreation,
+        commercial: commercial,
+        other: other,
+        minGreen: minGreen,
+        maxGray: maxGray,
+        effective: effective,
+        effectiveFinite: effectiveFinite,
+        greenShort: greenShort,
+        grayOverLimit: grayOverLimit,
+        footOver: footOver,
+        anyInput: green > 0 || gray > 0 || footprint > 0 || support > 0 || recreation > 0 || commercial > 0 || other > 0
+    };
+    renderOcupacionPiePark3D(datos);
+    renderConsultaPark3D(feature, datos);
 }
 
 function iniciarCalculadoraPark3D(feature) {
@@ -1237,6 +1754,18 @@ function iniciarCalculadoraPark3D(feature) {
     });
     var reset = document.getElementById('park3d-reset-calc');
     if (reset) reset.onclick = function () { iniciarCalculadoraPark3D(feature); };
+    document.querySelectorAll('[data-park3d-calc-view]').forEach(function (tab) {
+        tab.onclick = function () {
+            var view = tab.getAttribute('data-park3d-calc-view');
+            document.querySelectorAll('[data-park3d-calc-view]').forEach(function (other) {
+                other.classList.toggle('active', other === tab);
+            });
+            var consulta = document.getElementById('park3d-view-consulta');
+            var tecnica = document.getElementById('park3d-view-tecnica');
+            if (consulta) consulta.classList.toggle('hidden', view !== 'consulta');
+            if (tecnica) tecnica.classList.toggle('hidden', view !== 'tecnica');
+        };
+    });
     calcularOcupacionPark3D(feature);
 }
 
@@ -1485,7 +2014,7 @@ async function abrirParque3D(feature) {
     parque3DSeleccionado = targetFeature;
     var p = targetFeature.getProperties();
     setTextoPark3D('park3d-code', p['CÓDIGO'] || ('ID ' + (p.ID || '—')));
-    setTextoPark3D('park3d-title', p.NOMBRE || 'Vista 3D del parque');
+    setTextoPark3D('park3d-title', p.NOMBRE || 'Ficha del parque');
     setTextoPark3D('park3d-area', formatoAreaPark3D(p['ÁREA']));
     setTextoPark3D('park3d-trees', 'Cargando…');
     setTextoPark3D('park3d-green-actual', porcentajePark3D(p['%OCUP_VERD']));
@@ -1494,30 +2023,32 @@ async function abrirParque3D(feature) {
     setTextoPark3D('park3d-gray-max', p.O_GRIS_MAX || '—');
     setTextoPark3D('park3d-tree-cover', p.CO_ARBOREA || '—');
     iniciarCalculadoraPark3D(targetFeature);
+    limpiarEscenaParque3D();
 
     var modal = document.getElementById('park3d-modal');
-    var loading = document.getElementById('park3d-loading');
     if (modal) {
         modal.classList.remove('hidden');
         modal.setAttribute('aria-hidden', 'false');
     }
-    if (loading) {
-        loading.textContent = 'Cargando motor 3D, árboles y texturas…';
-        loading.classList.remove('hidden');
+
+    var centro = ol.extent.getCenter(targetFeature.getGeometry().getExtent());
+    var lonLat = ol.proj.toLonLat(centro);
+    var street = document.getElementById('park3d-street-frame');
+    var streetLink = document.getElementById('park3d-street-link');
+    if (street) {
+        street.src = 'https://maps.google.com/maps?q=&layer=c&cbll=' + lonLat[1] + ',' + lonLat[0] + '&cbp=11,0,0,0,0&output=svembed';
+    }
+    if (streetLink) {
+        streetLink.href = 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + lonLat[1] + ',' + lonLat[0];
     }
 
     try {
-        await cargarDependenciasParque3D();
-        var arboles = arbolesParaParque3D(targetFeature);
-        setTextoPark3D('park3d-trees', arboles.length.toLocaleString('es-PE'));
-        if (loading) loading.textContent = 'Construyendo vegetación realista…';
-        requestAnimationFrame(async function () {
-            await construirEscenaParque3D(targetFeature, arboles);
-            if (loading) loading.classList.add('hidden');
-        });
+        await asegurarArbolesMapa();
+        setTextoPark3D('park3d-trees', arbolesParaParque3D(targetFeature).length.toLocaleString('es-PE'));
+        setTextoPark3D('park3d-model-info', 'Ficha del parque · Street View · arbolado inventariado');
     } catch (error) {
         console.error(error);
-        if (loading) loading.textContent = 'No se pudo cargar la vista 3D.';
+        setTextoPark3D('park3d-trees', '—');
     }
 }
 
@@ -1565,7 +2096,7 @@ function mostrarFicha(feature, coordinate) {
         if (ocg === null && pd2) ocg = numeroSeguro(pd2.ocg);
 
         title.innerHTML = '<i class="fas fa-tree"></i> ' + p.NOMBRE;
-        finalHtml += '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-cube"></i> Explorar parque en 3D</button>';
+        finalHtml += '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-chart-pie"></i> Ver ficha del parque</button>';
 
         var areaNum = parseFloat(p['ÁREA']);
         var areaFmt = isNaN(areaNum) ? '—' : areaNum.toLocaleString('es-PE', { maximumFractionDigits: 0 }) + ' m²';
@@ -1721,13 +2252,6 @@ function mostrarFicha(feature, coordinate) {
         agregarFilaValida(htmlRows, 'Código', p['CÓDIGO']);
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
 
-        var pdfJuanAlameda = rutaPdfVia(p);
-        var enlaceJuanAlameda = enlaceHttpSeguro(p.LINKVERCEL || p.LINK);
-        if (pdfJuanAlameda) {
-            finalHtml += `<a href="${pdfJuanAlameda}" target="_blank" rel="noopener noreferrer" class="btn-accion"><i class="fas fa-file-pdf"></i> Diseño de Franjas (PDF)</a>`;
-        } else if (enlaceJuanAlameda) {
-            finalHtml += `<a href="${enlaceJuanAlameda}" target="_blank" rel="noopener noreferrer" class="btn-accion btn-accion--green"><i class="fas fa-file-pdf"></i> Documento relacionado</a>`;
-        }
     } else if (tipo === 'juan-pasaje-calle') {
         title.innerHTML = '<i class="fas fa-vector-square"></i> Pasajes/Calles - Urb. Juan XXIII';
         agregarFilaValida(htmlRows, 'Identificador', p.FID || p.FID_2);
@@ -1737,23 +2261,34 @@ function mostrarFicha(feature, coordinate) {
     } else if (tipo === 'surco-zona-reglamentada') {
         title.innerHTML = '<i class="fas fa-landmark"></i> Zona Reglamentada';
         finalHtml += '<p class="feature-description">Zona Reglamentada como Paisaje Arqueológico R.VM. N.º 041-2019-VMPCIC-MC.</p>';
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
     } else if (tipo === 'surco-faja') {
         title.innerHTML = '<i class="fas fa-water"></i> Faja marginal del Canal de Río Surco';
         finalHtml += '<p class="feature-description">Faja marginal del Canal de Río Surco según Resolución Jefatural N.º 332-2016-ANA.</p>';
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
     } else if (tipo === 'surco-uso-restringido') {
         title.innerHTML = '<i class="fas fa-leaf"></i> Zona de usos restringidos';
         finalHtml += '<p class="feature-description">Área asociada al Canal de Río Surco con usos restringidos.</p>';
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
     } else if (tipo === 'rio-surco') {
         var situacionSurco = p['situación'] || p.situacion || p.TIPO || 'Canal de Río Surco';
         title.innerHTML = '<i class="fas fa-water"></i> Río Surco';
         agregarFilaValida(htmlRows, 'Situación', situacionSurco);
         agregarFilaValida(htmlRows, 'Longitud', p.LONGITUD ? Number(p.LONGITUD).toLocaleString('es-PE', { maximumFractionDigits: 2 }) + ' m' : '');
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
+    } else if (tipo === 'bien-cultural-huaca') {
+        title.innerHTML = '<i class="fas fa-landmark"></i> Zona Arqueológica Huaca San Borja';
+        agregarFilaValida(htmlRows, 'Nombre', 'Zona Arqueológica Huaca San Borja');
+        finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
     }
 
     if (tipo === 'parque') {
+        var pdfParque = rutaPdfParque(p);
         finalHtml = construirStreetView(coordinate)
-            + '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-cube"></i> VER PARQUE EN 3D</button>';
+            + '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-chart-pie"></i> VER FICHA DEL PARQUE</button>'
+            + botonPdfFicha(pdfParque, 'Ver PDF');
     }
 
     content.innerHTML = finalHtml;
@@ -1762,6 +2297,7 @@ function mostrarFicha(feature, coordinate) {
 }
 
 var PRIORIDAD_CLICK_FEATURE = {
+    'arbol': 5,
     'via': 10,
     'rio-surco': 12,
     'juan-pasaje-calle': 14,
@@ -1773,6 +2309,7 @@ var PRIORIDAD_CLICK_FEATURE = {
     'surco-zona-reglamentada': 30,
     'surco-faja': 31,
     'surco-uso-restringido': 32,
+    'bien-cultural-huaca': 33,
     'urb-juan': 45,
     'atu': 80,
     'subsector': 90,
@@ -1814,6 +2351,13 @@ map.on('singleclick', function (evt) {
     if (document.body.classList.contains('streetview-targeting')) return;
     var feature = featureInteractivaEnPixel(evt.pixel, inclinacionMapaActiva ? 9 : 5);
     var pixelBusqueda = pixelOriginalDesdeVistaInclinada(evt.pixel);
+    if (feature && feature.get('__tipo') === 'arbol') {
+        mostrarPopupArbol(feature, map.getCoordinateFromPixel(pixelBusqueda));
+        return;
+    }
+    if (overlayArbol) overlayArbol.setPosition(undefined);
+    if (arbolPopupEl) arbolPopupEl.classList.add('hidden');
+    marcarArbolSeleccionado(null);
     mostrarFicha(feature, map.getCoordinateFromPixel(pixelBusqueda));
 });
 

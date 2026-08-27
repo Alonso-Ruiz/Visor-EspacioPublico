@@ -88,6 +88,15 @@
             title="Street View: activa y selecciona un punto del mapa">
             <img src="images/pegman.png" alt="">
         </button>
+        <button id="btn-sat-opacity" type="button" aria-label="Mostrar transparencia del mapa"
+            aria-expanded="false" aria-controls="sat-opacity-panel" title="Transparencia del mapa">
+            <i class="fas fa-adjust" aria-hidden="true"></i>
+        </button>
+        <div id="sat-opacity-panel" class="sat-opacity-panel" hidden>
+            <strong>Transparencia del mapa</strong>
+            <input type="range" id="sat-opacity" min="0" max="1" step="0.05" value="0.3"
+                aria-label="Transparencia del mapa">
+        </div>
     </div>
     <img id="streetview-drag-ghost" src="images/pegman.png" alt="" aria-hidden="true">
 
@@ -125,23 +134,18 @@
             <div class="park3d-toolbar">
                 <div>
                     <span class="park3d-chip" id="park3d-code">—</span>
-                    <h2 id="park3d-title">Vista 3D del parque</h2>
+                    <h2 id="park3d-title">Ficha del parque</h2>
                 </div>
                 <div class="park3d-actions">
-                    <button type="button" class="park3d-ghost-btn" id="park3d-toggle-canopy">Copas métricas</button>
-                    <button type="button" class="park3d-ghost-btn" id="park3d-pedestrian">Vista peatonal</button>
-                    <button type="button" class="park3d-ghost-btn" id="park3d-reset">Recentrar</button>
-                    <button type="button" class="park3d-close-btn" id="park3d-close" aria-label="Cerrar vista 3D">×</button>
+                    <button type="button" class="park3d-close-btn" id="park3d-close" aria-label="Cerrar ficha del parque">×</button>
                 </div>
             </div>
             <div class="park3d-layout">
-                <div id="park3d-container" class="park3d-container">
-                    <div class="park3d-hint">Arrastra para orbitar · rueda para acercar</div>
-                    <div class="park3d-loading" id="park3d-loading">Construyendo modelo…</div>
+                <div id="park3d-container" class="park3d-container park-card-street">
+                    <iframe id="park3d-street-frame" class="park-card-street-frame" title="Vista de calle del parque" loading="lazy" allowfullscreen referrerpolicy="no-referrer"></iframe>
+                    <a id="park3d-street-link" class="park-card-street-link" href="#" target="_blank" rel="noopener noreferrer">Abrir Street View en Google Maps ↗</a>
                 </div>
                 <aside class="park3d-panel">
-                    <h3>Lectura para diseño</h3>
-                    <p class="park3d-intro">El parque se representa con su polígono y el arbolado contenido. Es una vista referencial para explorar volumen, copas y ocupación.</p>
                     <div class="park3d-stat"><span>Área del parque</span><strong id="park3d-area">—</strong></div>
                     <div class="park3d-stat"><span>Árboles contenidos</span><strong id="park3d-trees">—</strong></div>
                     <div class="park3d-stat"><span>Verde actual</span><strong id="park3d-green-actual">—</strong></div>
@@ -154,42 +158,63 @@
                     <section class="park3d-calculator" id="park3d-calculator">
                         <div class="park3d-calc-head">
                             <div>
-                                <span class="park3d-micro">Simulador reglamentario</span>
-                                <h3>Índices de ocupación</h3>
+                                <span class="park3d-micro">Índice de ocupación</span>
+                                <h3>Estado y capacidad normativa</h3>
                             </div>
-                            <button type="button" class="park3d-mini-btn" id="park3d-reset-calc">Usar situación actual</button>
+                            <button type="button" class="park3d-mini-btn" id="park3d-reset-calc">Situación actual</button>
                         </div>
-                        <p class="park3d-calc-intro">Ingresa áreas de una propuesta. El visor calcula porcentajes e índice de ocupación y los compara con los parámetros del parque.</p>
-                        <div class="park3d-calc-grid">
-                            <label><span>Área verde propuesta</span><div><input id="park3d-calc-green" type="number" min="0" step="1"><b>m²</b></div></label>
-                            <label><span>Área gris propuesta</span><div><input id="park3d-calc-gray" type="number" min="0" step="1"><b>m²</b></div></label>
-                            <label><span>Huella techada propuesta</span><div><input id="park3d-calc-footprint" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
-                            <label><span>Uso de soporte</span><div><input id="park3d-calc-support" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
-                            <label><span>Uso recreativo</span><div><input id="park3d-calc-recreation" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
-                            <label><span>Uso comercial</span><div><input id="park3d-calc-commercial" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
-                            <label><span>Otros usos</span><div><input id="park3d-calc-other" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                        <div class="park3d-verdict-card neutral" id="park3d-verdict-card">
+                            <div class="park3d-verdict-icon" id="park3d-verdict-icon">–</div>
+                            <div class="park3d-verdict-body">
+                                <strong id="park3d-verdict-title">Sin propuesta ingresada</strong>
+                                <p id="park3d-verdict-text">Ingresa las áreas propuestas para evaluar su conformidad con los parámetros del parque.</p>
+                            </div>
                         </div>
-                        <div class="park3d-calc-results">
-                            <div><span>Verde calculado</span><strong id="park3d-calc-green-pct">—</strong><em id="park3d-calc-green-status"></em></div>
-                            <div><span>Gris calculado</span><strong id="park3d-calc-gray-pct">—</strong><em id="park3d-calc-gray-status"></em></div>
-                            <div><span>Índice de ocupación</span><strong id="park3d-calc-io">—</strong><em id="park3d-calc-io-status"></em></div>
-                            <div><span>Huella efectiva máxima</span><strong id="park3d-calc-effective-footprint">—</strong><em>menor entre IO × área y tope absoluto</em></div>
-                            <div><span>Superficie sin asignar</span><strong id="park3d-calc-unassigned">—</strong><em id="park3d-calc-allocation-status"></em></div>
+                        <div class="park3d-occ-pie-wrap">
+                            <svg id="park3d-occ-pie" viewBox="0 0 180 180" width="180" height="180" aria-label="Gráfico de reparto de ocupación"></svg>
+                            <div class="park3d-occ-pie-legend" id="park3d-occ-pie-legend"></div>
                         </div>
-                        <div class="park3d-calc-use-results" id="park3d-calc-use-results"></div>
-                        <div class="park3d-formula-box">
-                            <strong>Fórmulas aplicadas</strong>
-                            <code>% = área propuesta / área total × 100</code>
-                            <code>IO = huella techada / área total</code>
-                            <code>Huella máx. efectiva = mín.(IO normativo × área total, huella máx. absoluta)</code>
-                        </div>
+                        <div class="park3d-status-box neutral" id="park3d-calc-overlay-warn">Ingresa áreas de una propuesta para visualizar el reparto de ocupación.</div>
+                        <details class="park3d-acc" open>
+                            <summary><span class="park3d-acc-ic">✎</span> Ingresar propuesta</summary>
+                            <div class="park3d-acc-body">
+                                <div class="park3d-calc-grid">
+                                    <label><span>Área verde</span><div><input id="park3d-calc-green" type="number" min="0" step="1"><b>m²</b></div></label>
+                                    <label><span>Piso duro</span><div><input id="park3d-calc-gray" type="number" min="0" step="1"><b>m²</b></div></label>
+                                    <label><span>Área techada</span><div><input id="park3d-calc-footprint" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                                    <label><span>Servicios de apoyo</span><div><input id="park3d-calc-support" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                                    <label><span>Juegos y estar</span><div><input id="park3d-calc-recreation" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                                    <label><span>Kioscos/cafetería</span><div><input id="park3d-calc-commercial" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                                    <label><span>Otros usos</span><div><input id="park3d-calc-other" type="number" min="0" step="1" value="0"><b>m²</b></div></label>
+                                </div>
+                            </div>
+                        </details>
+                        <details class="park3d-acc">
+                            <summary><span class="park3d-acc-ic">▤</span> Capacidad máxima por uso</summary>
+                            <div class="park3d-acc-body">
+                                <div class="park3d-allow-list" id="park3d-allow-list"></div>
+                            </div>
+                        </details>
+                        <details class="park3d-acc">
+                            <summary><span class="park3d-acc-ic">∑</span> Detalle técnico (porcentajes e índices)</summary>
+                            <div class="park3d-acc-body">
+                                <div class="park3d-calc-results">
+                                    <div><span>Verde calculado</span><strong id="park3d-calc-green-pct">—</strong><em id="park3d-calc-green-status"></em></div>
+                                    <div><span>Gris calculado</span><strong id="park3d-calc-gray-pct">—</strong><em id="park3d-calc-gray-status"></em></div>
+                                    <div><span>Índice de ocupación</span><strong id="park3d-calc-io">—</strong><em id="park3d-calc-io-status"></em></div>
+                                    <div><span>Huella efectiva máxima</span><strong id="park3d-calc-effective-footprint">—</strong><em>menor entre IO × área y tope absoluto</em></div>
+                                    <div><span>Superficie sin asignar</span><strong id="park3d-calc-unassigned">—</strong><em id="park3d-calc-allocation-status"></em></div>
+                                </div>
+                                <div class="park3d-calc-use-results" id="park3d-calc-use-results"></div>
+                                <div class="park3d-formula-box">
+                                    <strong>Fórmulas aplicadas</strong>
+                                    <code>% = área propuesta / área total × 100</code>
+                                    <code>IO = huella techada / área total</code>
+                                    <code>Huella máx. efectiva = mín.(IO normativo × área total, huella máx. absoluta)</code>
+                                </div>
+                            </div>
+                        </details>
                     </section>
-                    <div class="park3d-legend">
-                        <span><i class="park3d-swatch park3d-swatch--ground"></i> Superficie del parque</span>
-                        <span><i class="park3d-swatch park3d-swatch--canopy"></i> Arbolado fotorealista según inventario</span>
-                        <span><i class="park3d-swatch park3d-swatch--metric"></i> Envolvente métrica de copa</span>
-                    </div>
-                    <p class="park3d-footnote">Las texturas y datos del arbolado se cargan recién al abrir esta vista para no ralentizar el mapa principal.</p>
                 </aside>
             </div>
         </div>
@@ -212,7 +237,7 @@
                         <input type="checkbox" id="chk-sectores-general" checked>
                         <span>Sectores</span>
                     </summary>
-                    <div class="capa-item">
+                    <div class="capa-item capa-item--separated">
                         <input type="checkbox" id="chk-sectores" checked>
                         <label for="chk-sectores">Sectores</label>
                     </div>
@@ -300,7 +325,7 @@
                     <p class="legend-description legend-definition" id="def-recreacion">Espacios públicos destinados a
                         la recreación pública: plazas, plazuelas, anfiteatros, losas deportivas, parques, jardines,
                         alamedas, malecones y similares.</p>
-                    <div class="capa-item">
+                    <div class="capa-item capa-item--separated">
                         <input type="checkbox" id="chk-parques" checked>
                         <label for="chk-parques">Parques</label>
                     </div>
@@ -432,6 +457,10 @@
                             </div>
                         </div>
                     </details>
+                    <div class="capa-item capa-item--separated">
+                        <input type="checkbox" id="chk-huaca-san-borja" checked>
+                        <label for="chk-huaca-san-borja">Zona Arqueológica Huaca San Borja</label>
+                    </div>
                 </details>
 
                 <details class="legend-group legend-group--teal" open>
@@ -488,10 +517,6 @@
 
             </div>
 
-            <div class="control-seccion">
-                <div class="seccion-titulo"><i class="fas fa-satellite"></i> Transparencia Satélite</div>
-                <input type="range" id="sat-opacity" min="0" max="1" step="0.05" value="0.3">
-            </div>
         </div>
     </div>
 
@@ -509,6 +534,7 @@
     <script src="layers/Zonadeusosrestringidos_1.js"></script>
     <script src="layers/Zonareglamentada_2.js"></script>
     <script src="layers/LneaderoSurco_3.js"></script>
+    <script src="layers/Bienes_culturales_Inmuebles_0.js"></script>
     <script src="layers/limite_distrital_0.js"></script>
     <script src="layers/subsectores_1.js"></script>
     <script src="layers/Sectores_2.js"></script>
@@ -517,6 +543,7 @@
     <script src="layers/ALAMEDASDESUBMANZANAS_2.js"></script>
     <script src="layers/BORDEDESUBMANZANAYREALIBRE_3.js"></script>
 
+    <script src="styles/Bienes_culturales_Inmuebles_0_style.js"></script>
     <script src="assets/js/app.js"></script>
     <script src="assets/js/streetview.js"></script>
 </body>
