@@ -162,6 +162,7 @@ function idLeyendaParaFeature(feature) {
     if (tipo === 'subsector') return 'chk-subsectores';
     if (tipo === 'servidumbre') return 'chk-servidumbres';
     if (tipo === 'juan-alameda') return 'chk-juan-alamedas';
+    if (tipo === 'manzana-juan') return 'chk-juan-manzanas';
     if (tipo === 'juan-pasaje-calle' || tipo === 'urb-juan') return 'chk-juan-pasajes-calles';
     if (tipo === 'surco-zona-reglamentada') return 'chk-surco-zona-reglamentada';
     if (tipo === 'surco-faja') return 'chk-surco-faja-marginal';
@@ -252,18 +253,50 @@ function crearFeatures(jsonData, tipo) {
     return features;
 }
 
+function escaparHtml(valor) {
+    return String(valor || '').replace(/[&<>"']/g, function (caracter) {
+        return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[caracter];
+    });
+}
+
 // ESTILOS DINÁMICOS
 
-// ─── Reglamento de Espacios Públicos — Tabla Oficial Art. 43 ──
-var ATU_PARAMS = {
-    'Conservación': { ovLim: '85%', ca: '60%', ogLim: '15%', ms: '10%', mr: '5%', mc: '2%', mu: '2%', ioe: '0.015', hu: '250 m²', alt: '4 m' },
-    'Consolidación': { ovLim: '75%', ca: '40%', ogLim: '25%', ms: '15%', mr: '20%', mc: '2%', mu: '2%', ioe: '0.03', hu: '350 m²', alt: '4 m' },
-    'Generación': { ovLim: '75%', ca: '30%', ogLim: '25%', ms: '15%', mr: '20%', mc: '5%', mu: '2%', ioe: '0.05', hu: '500 m²', alt: '4 m' },
-    'Dinamización': { ovLim: '80%', ca: '30%', ogLim: '20%', ms: '15%', mr: '15%', mc: '5%', mu: '2%', ioe: '0.08', hu: '400 m²', alt: '7.5 m' },
-    'Renovación': { ovLim: '40%', ca: '15%', ogLim: '60%', ms: '25%', mr: '40%', mc: '15%', mu: '15%', ioe: '0.2', hu: '400 m²', alt: '4.5 m' }
-};
+function crearPatronDiagonal(colorLinea, colorFondo) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 36;
+    canvas.height = 36;
+    var ctx = canvas.getContext('2d');
+
+    if (colorFondo) {
+        ctx.fillStyle = colorFondo;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    ctx.strokeStyle = colorLinea;
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'square';
+    ctx.beginPath();
+    for (var i = -36; i <= 72; i += 18) {
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i + 36, 36);
+    }
+    ctx.stroke();
+
+    return ctx.createPattern(canvas, 'repeat');
+}
+
+var patronManzanasRayado = crearPatronDiagonal('rgba(99, 99, 99, 0.95)', null);
+var patronJuanRayado = crearPatronDiagonal('rgba(99, 99, 99, 0.95)', null);
+
 var styleManzanas = new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(100, 116, 139, 0.4)', width: 1 }), fill: new ol.style.Fill({ color: 'rgba(241, 245, 249, 0.1)' }) });
-var styleManzanasLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(71, 85, 105, 0.65)', width: 1, lineDash: [5, 3] }), fill: new ol.style.Fill({ color: 'rgba(241, 245, 249, 0.06)' }) });
+var styleManzanasJuan = new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(235, 235, 235, 0.95)', width: 1.25 }), fill: new ol.style.Fill({ color: patronJuanRayado }) });
+var styleManzanasLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255, 255, 255, 0.95)', width: 1.1 }), fill: new ol.style.Fill({ color: patronManzanasRayado }) });
 var styleEpiLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#047857', width: 2 }), fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.2)' }) });
 var styleEpiTorres = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#0f766e', width: 2 }), fill: new ol.style.Fill({ color: 'rgba(45, 212, 191, 0.22)' }) });
 var styleServidumbre = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#a16207', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(251, 191, 36, 0.3)' }) });
@@ -508,7 +541,29 @@ if (typeof json_Secciones_Viales_3_6 !== 'undefined') {
     });
 }
 
-var vectorManzanas = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Manzanas_0 !== 'undefined' ? crearFeatures(json_Manzanas_0, 'manzana') : [] }), style: styleManzanas, zIndex: 10 });
+function crearExtentDesdeFeatures(features) {
+    var extent = ol.extent.createEmpty();
+    features.forEach(function (feature) {
+        var geometry = feature && feature.getGeometry ? feature.getGeometry() : null;
+        if (geometry) ol.extent.extend(extent, geometry.getExtent());
+    });
+    return extent;
+}
+
+var featuresUrbJuan = typeof json_Polgonopista_0 !== 'undefined' ? crearFeatures(json_Polgonopista_0, 'urb-juan') : [];
+var featuresJuanPasajesCalles = typeof json_BORDEDESUBMANZANAYREALIBRE_3 !== 'undefined' ? crearFeatures(json_BORDEDESUBMANZANAYREALIBRE_3, 'juan-pasaje-calle') : [];
+var extentJuanXXIII = crearExtentDesdeFeatures(featuresJuanPasajesCalles.length ? featuresJuanPasajesCalles : featuresUrbJuan);
+var featuresManzanasGenerales = [];
+var featuresManzanasJuan = [];
+(typeof json_Manzanas_0 !== 'undefined' ? crearFeatures(json_Manzanas_0, 'manzana') : []).forEach(function (feature) {
+    var geometry = feature.getGeometry();
+    var perteneceAJuan = geometry && !ol.extent.isEmpty(extentJuanXXIII) && ol.extent.intersects(geometry.getExtent(), extentJuanXXIII);
+    if (perteneceAJuan) feature.set('__tipo', 'manzana-juan', true);
+    (perteneceAJuan ? featuresManzanasJuan : featuresManzanasGenerales).push(feature);
+});
+
+var vectorManzanas = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresManzanasGenerales }), style: styleManzanas, zIndex: 10 });
+var vectorManzanasJuan = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresManzanasJuan }), style: styleManzanasJuan, zIndex: 12.75 });
 var vectorManzanasLimatambo = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Manzanas_Limatambo_2 !== 'undefined' ? crearFeatures(json_Manzanas_Limatambo_2, 'manzana') : [] }), style: styleManzanasLimatambo, zIndex: 10 });
 var vectorEpiLimatambo = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_EPI_LT_0 !== 'undefined' ? crearFeatures(json_EPI_LT_0, 'epi') : [] }), style: styleEpiLimatambo, zIndex: 11 });
 var vectorEpiTorres = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_EPI_TSB_1 !== 'undefined' ? crearFeatures(json_EPI_TSB_1, 'epi') : [] }), style: styleEpiTorres, zIndex: 11 });
@@ -517,16 +572,16 @@ var vectorAtu = new ol.layer.Vector({ source: new ol.source.Vector({ features: t
 var vectorLimiteDistrital = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_limite_distrital_0 !== 'undefined' ? crearFeatures(json_limite_distrital_0, 'limite-distrital') : [] }), style: styleLimiteDistrital, zIndex: 16 });
 var vectorSectores = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Sectores_2 !== 'undefined' ? crearFeatures(json_Sectores_2, 'sector') : [] }), style: styleSectoresFn, declutter: true, zIndex: 8 });
 var vectorSubsectores = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_subsectores_1 !== 'undefined' ? crearFeatures(json_subsectores_1, 'subsector') : [] }), style: styleSubsectoresFn, declutter: true, zIndex: 9 });
-var vectorUrbJuan = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Polgonopista_0 !== 'undefined' ? crearFeatures(json_Polgonopista_0, 'urb-juan') : [] }), style: styleUrbJuan, zIndex: 11 });
+var vectorUrbJuan = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresUrbJuan }), style: styleUrbJuan, zIndex: 11 });
 var vectorJuanAlamedas = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_ALAMEDASDESUBMANZANAS_2 !== 'undefined' ? crearFeatures(json_ALAMEDASDESUBMANZANAS_2, 'juan-alameda') : [] }), style: styleJuanAlamedas, zIndex: 12 });
-var vectorJuanPasajesCalles = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_BORDEDESUBMANZANAYREALIBRE_3 !== 'undefined' ? crearFeatures(json_BORDEDESUBMANZANAYREALIBRE_3, 'juan-pasaje-calle') : [] }), style: styleJuanPasajesCalles, zIndex: 13 });
+var vectorJuanPasajesCalles = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresJuanPasajesCalles }), style: styleJuanPasajesCalles, zIndex: 13 });
 var vectorSurcoUsoRestringido = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Zonadeusosrestringidos_1 !== 'undefined' ? crearFeatures(json_Zonadeusosrestringidos_1, 'surco-uso-restringido') : [] }), style: styleSurcoUsoRestringido, zIndex: 9 });
 var vectorSurcoFajaMarginal = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Fajamarginal_0 !== 'undefined' ? crearFeatures(json_Fajamarginal_0, 'surco-faja') : [] }), style: styleSurcoFajaMarginal, zIndex: 9 });
 var vectorSurcoZonaReglamentada = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Zonareglamentada_2 !== 'undefined' ? crearFeatures(json_Zonareglamentada_2, 'surco-zona-reglamentada') : [] }), style: styleSurcoZonaReglamentada, zIndex: 10 });
 var vectorRioSurco = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_LneaderoSurco_3 !== 'undefined' ? crearFeatures(json_LneaderoSurco_3, 'rio-surco') : [] }), style: styleRioSurcoFn, zIndex: 15 });
 var featuresHuacaSanBorja = typeof json_Bienes_culturales_Inmuebles_0 !== 'undefined'
     ? crearFeatures(json_Bienes_culturales_Inmuebles_0, 'bien-cultural-huaca').filter(function (feature) {
-        return normalizarTextoFiltro(feature.get('NOMBRE')).includes('huaca san borja');
+        return Boolean(String(feature.get('NOMBRE') || '').trim());
     })
     : [];
 var vectorHuacaSanBorja = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresHuacaSanBorja }), style: styleHuacaSanBorja, zIndex: 11 });
@@ -543,7 +598,7 @@ var layerHighlight = new ol.layer.Vector({ source: sourceHighlight, style: style
 
 var map = new ol.Map({
     target: 'map', renderer: ['webgl', 'canvas'],
-    layers: [googleSat, vectorAtu, vectorSectores, vectorSubsectores, vectorSurcoUsoRestringido, vectorSurcoFajaMarginal, vectorSurcoZonaReglamentada, vectorHuacaSanBorja, vectorManzanas, vectorManzanasLimatambo, vectorEpiLimatambo, vectorEpiTorres, vectorServidumbres, vectorUrbJuan, vectorJuanAlamedas, vectorJuanPasajesCalles, vectorParques, vectorJardinesAislamiento, vectorRedVial, vectorRioSurco, vectorLimiteDistrital, vectorArbolesCopa, vectorArbolesPunto, layerHighlight],
+    layers: [googleSat, vectorAtu, vectorSectores, vectorSubsectores, vectorSurcoUsoRestringido, vectorSurcoFajaMarginal, vectorSurcoZonaReglamentada, vectorHuacaSanBorja, vectorManzanas, vectorManzanasLimatambo, vectorEpiLimatambo, vectorEpiTorres, vectorServidumbres, vectorUrbJuan, vectorJuanAlamedas, vectorManzanasJuan, vectorJuanPasajesCalles, vectorParques, vectorJardinesAislamiento, vectorRedVial, vectorRioSurco, vectorLimiteDistrital, vectorArbolesCopa, vectorArbolesPunto, layerHighlight],
     view: new ol.View({ center: ol.proj.fromLonLat([-76.9933, -12.0951]), zoom: 14, minZoom: 13, maxZoom: 22 }),
     controls: [new ol.control.Zoom(), new ol.control.ScaleLine({ units: 'metric' })]
 });
@@ -875,13 +930,14 @@ function actualizarEstadoAtu() {
 
 function actualizarEstadoJuan() {
     var juanActivo = filtroActivo('chk-urb-juan');
-    ['chk-juan-alamedas', 'chk-juan-pasajes-calles'].forEach(function (id) {
+    ['chk-juan-alamedas', 'chk-juan-pasajes-calles', 'chk-juan-manzanas'].forEach(function (id) {
         var input = document.getElementById(id);
         if (input) input.disabled = !juanActivo;
     });
 
     vectorUrbJuan.setVisible(juanActivo && filtroActivo('chk-juan-pasajes-calles'));
     vectorJuanAlamedas.setVisible(juanActivo && filtroActivo('chk-juan-alamedas'));
+    vectorManzanasJuan.setVisible(juanActivo && filtroActivo('chk-juan-manzanas'));
     vectorJuanPasajesCalles.setVisible(juanActivo && filtroActivo('chk-juan-pasajes-calles'));
 }
 
@@ -915,12 +971,11 @@ function actualizarEstadoRecreacion() {
 
 function actualizarEstadoTorresSanBorja() {
     var activo = filtroActivo('chk-tsb-general');
-    ['chk-epi-tsb', 'chk-manzanas'].forEach(function (id) {
+    ['chk-epi-tsb'].forEach(function (id) {
         var input = document.getElementById(id);
         if (input) input.disabled = !activo;
     });
     vectorEpiTorres.setVisible(activo && filtroActivo('chk-epi-tsb'));
-    vectorManzanas.setVisible(activo && filtroActivo('chk-manzanas'));
 }
 
 function actualizarEstadoLimatambo() {
@@ -1014,11 +1069,16 @@ document.getElementById('chk-limite-distrital').onchange = e => vectorLimiteDist
 });
 actualizarEstadoRecreacion();
 
-['chk-tsb-general', 'chk-manzanas', 'chk-epi-tsb'].forEach(function (id) {
+['chk-tsb-general', 'chk-epi-tsb'].forEach(function (id) {
     var input = document.getElementById(id);
     if (input) input.onchange = actualizarEstadoTorresSanBorja;
 });
 actualizarEstadoTorresSanBorja();
+
+document.getElementById('chk-manzanas').onchange = function (event) {
+    vectorManzanas.setVisible(event.target.checked);
+};
+vectorManzanas.setVisible(filtroActivo('chk-manzanas'));
 
 ['chk-limatambo-general', 'chk-manzanas-lt', 'chk-epi-lt', 'chk-servidumbres'].forEach(function (id) {
     var input = document.getElementById(id);
@@ -1026,7 +1086,7 @@ actualizarEstadoTorresSanBorja();
 });
 actualizarEstadoLimatambo();
 
-['chk-urb-juan', 'chk-juan-alamedas', 'chk-juan-pasajes-calles'].forEach(function (id) {
+['chk-urb-juan', 'chk-juan-alamedas', 'chk-juan-pasajes-calles', 'chk-juan-manzanas'].forEach(function (id) {
     var input = document.getElementById(id);
     if (input) input.onchange = actualizarEstadoJuan;
 });
@@ -2073,115 +2133,7 @@ function mostrarFicha(feature, coordinate) {
     var finalHtml = construirStreetView(coordinate);
 
     if (tipo === 'parque') {
-        // La capa actualizada ya incluye la información normativa completa.
-        var pd2 = (typeof PARQUES_DATA !== 'undefined' && p['CÓDIGO']) ? (PARQUES_DATA[p['CÓDIGO']] || null) : null;
-        var atuTipo = (pd2 ? pd2.atu : null) || (p.ATU || '').split('/')[0].trim() || '—';
-        var apBase = ATU_PARAMS[atuTipo] || null;
-        var ap = {
-            ovLim: p['AREA VERDE'] || (apBase && apBase.ovLim),
-            ca: p.CO_ARBOREA || (apBase && apBase.ca),
-            ogLim: p.O_GRIS_MAX || (apBase && apBase.ogLim),
-            ms: p.SOPORTE || (apBase && apBase.ms),
-            mr: p.RECREATIVO || (apBase && apBase.mr),
-            mc: p.COMERCIAL || (apBase && apBase.mc),
-            mu: p.OTR_USOS || (apBase && apBase.mu),
-            ioe: p['ÍNDIC_OCU'] || (apBase && apBase.ioe),
-            hu: numeroSeguro(p['HT_MAX(m2)']) !== null ? numeroSeguro(p['HT_MAX(m2)']).toLocaleString('es-PE') + ' m²' : (apBase && apBase.hu),
-            alt: numeroSeguro(p['ALT_MAX(m)']) !== null ? numeroSeguro(p['ALT_MAX(m)']).toLocaleString('es-PE') + ' m' : (apBase && apBase.alt)
-        };
-        var atuClass = 'atu-' + atuTipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        var ocv = numeroSeguro(p['%OCUP_VERD']);
-        var ocg = numeroSeguro(p['%OCUP_GRIS']);
-        if (ocv === null && pd2) ocv = numeroSeguro(pd2.ocv);
-        if (ocg === null && pd2) ocg = numeroSeguro(pd2.ocg);
-
         title.innerHTML = '<i class="fas fa-tree"></i> ' + p.NOMBRE;
-        finalHtml += '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-chart-pie"></i> Ver ficha del parque</button>';
-
-        var areaNum = parseFloat(p['ÁREA']);
-        var areaFmt = isNaN(areaNum) ? '—' : areaNum.toLocaleString('es-PE', { maximumFractionDigits: 0 }) + ' m²';
-
-        // ── Header ─────────────────────────────────────────────────
-        finalHtml += '<div class="park-summary ' + atuClass + '">'
-            + '<span class="atu-badge">' + atuTipo + '</span>'
-            + '<div class="park-metadata">'
-            + (p['CÓDIGO'] ? '<strong class="park-code">' + p['CÓDIGO'] + '</strong> · ' : '')
-            + areaFmt
-            + (p.CLASIFICAC ? '<br><span class="park-classification">' + p.CLASIFICAC + '</span>' : '')
-            + '</div></div>';
-
-        // helpers
-        var pct = function (v) { return v !== null && v !== undefined ? v.toFixed(1).replace('.0', '') + '%' : '—'; };
-        var TH = 'class="norm-section"';
-        var TL = 'class="norm-label"';
-        var TLA = 'class="norm-label norm-label--strong"';
-        var TR = 'class="norm-value"';
-        var TR2 = 'class="norm-value norm-value--secondary"';
-        var SEP = 'class="norm-row"';
-
-        finalHtml += '<table class="norm-table">';
-
-        // ── BLOQUE 1: Situación actual (del Excel) ─────────────────
-        if (ocv !== null) {
-            var ovLimNum = ap ? parseFloat(ap.ovLim) : null;
-            var ogLimNum = ap ? parseFloat(ap.ogLim) : null;
-            var ovOk = ovLimNum !== null ? ocv >= ovLimNum : null;
-            var ogOk = ogLimNum !== null ? ocg <= ogLimNum : null;
-            var tick = function (ok) { return ok === null ? '' : (ok ? ' <span class="status status--ok">✓</span>' : ' <span class="status status--error">✗</span>'); };
-
-            finalHtml += '<tr><td colspan="3" ' + TH + '>Situación Actual del Parque</td></tr>'
-                // verde bar + value
-                + '<tr ' + SEP + '>'
-                + '<td ' + TLA + '>Ocupación verde</td>'
-                + '<td class="progress-cell">'
-                + '<progress class="occupancy-progress occupancy-progress--green" value="' + ocv + '" max="100">' + pct(ocv) + '</progress>'
-                + '</td>'
-                + '<td class="norm-value norm-value--green">' + pct(ocv) + tick(ovOk) + '</td></tr>'
-                // gris bar + value
-                + '<tr ' + SEP + '>'
-                + '<td ' + TL + '>Ocupación gris</td>'
-                + '<td class="progress-cell">'
-                + '<progress class="occupancy-progress occupancy-progress--gray" value="' + ocg + '" max="100">' + pct(ocg) + '</progress>'
-                + '</td>'
-                + '<td class="norm-value norm-value--gray">' + pct(ocg) + tick(ogOk) + '</td></tr>';
-
-            // Compliance note
-            if (ovOk === false || ogOk === false) {
-                finalHtml += '<tr><td colspan="3" class="compliance compliance--error">'
-                    + '&#9888; El parque presenta déficit respecto al límite normativo.</td></tr>';
-            } else if (ovOk === true && ogOk === true) {
-                finalHtml += '<tr><td colspan="3" class="compliance compliance--ok">'
-                    + '&#10003; El parque cumple con los límites normativos.</td></tr>';
-            }
-        }
-
-        // ── BLOQUE 2: Límites normativos (refinados) ───────────────
-        if (ap) {
-            finalHtml += '<tr><td colspan="3" ' + TH + '>Límites Normativos — Art. 43 RGEP</td></tr>'
-                + '<tr ' + SEP + '><td ' + TLA + '>Áreas verdes mínimas</td><td></td><td class="norm-value norm-value--green">' + (ap.ovLim || '—') + '</td></tr>'
-                + '<tr ' + SEP + '><td ' + TL + '>Cobertura arbórea mínima</td><td></td><td class="norm-value norm-value--green-secondary">' + (ap.ca || '—') + '</td></tr>'
-                + '<tr class="norm-row norm-row--section-end"><td ' + TL + '>Gris máxima absoluta</td><td></td><td class="norm-value norm-value--red">' + (ap.ogLim || '—') + '</td></tr>';
-        }
-
-        // ── BLOQUE 3: Módulos Funcionales ─────────────────────────
-        if (ap) {
-            finalHtml += '<tr><td colspan="3" ' + TH + '>Módulos Funcionales</td></tr>'
-                + '<tr ' + SEP + '><td ' + TL + '> Soporte <span class="module-code">(MS)</span></td><td></td><td ' + TR2 + '>' + (ap.ms || '—') + '</td></tr>'
-                + '<tr ' + SEP + '><td ' + TL + '> Recreativo <span class="module-code">(MR)</span></td><td></td><td ' + TR2 + '>' + (ap.mr || '—') + '</td></tr>'
-                + '<tr ' + SEP + '><td ' + TL + '> Comercial <span class="module-code">(MC)</span></td><td></td><td ' + TR2 + '>' + (ap.mc || '—') + '</td></tr>'
-                + '<tr class="norm-row norm-row--section-end"><td ' + TL + '> Otros Usos <span class="module-code">(MU)</span></td><td></td><td ' + TR2 + '>' + (ap.mu || '—') + '</td></tr>'
-                + '<tr><td colspan="3" class="norm-note">* MC + MU ≤ 15% del área total</td></tr>';
-        }
-
-        // ── BLOQUE 4: Máximo de Área Techada para Módulos Funcionales ─────────────────────────────────
-        if (ap) {
-            finalHtml += '<tr><td colspan="3" ' + TH + '>Máximo de Área Techada para Módulos Funcionales</td></tr>'
-                + '<tr ' + SEP + '><td ' + TL + '>Índice de Ocupación para Infraestructura (IOE)</td><td></td><td ' + TR2 + '>' + (ap.ioe || '—') + '</td></tr>'
-                + '<tr ' + SEP + '><td ' + TL + '>Huella máxima</td><td></td><td ' + TR2 + '>' + (ap.hu || '—') + '</td></tr>'
-                + '<tr><td ' + TL + '>Altura máxima</td><td></td><td ' + TR2 + '>' + (ap.alt || '—') + '</td></tr>';
-        }
-
-        finalHtml += '</table>';
     } else if (tipo === 'via') {
         title.innerHTML = `<i class="fas fa-road"></i> ${p.NOMBRE_FIN}`;
         var detalleSeccion = seccionesPorCodigo[p['CÓDIGO']] || {};
@@ -2195,7 +2147,7 @@ function mostrarFicha(feature, coordinate) {
 
         var pdfVia = rutaPdfVia(p);
         if (pdfVia) {
-            finalHtml += `<a href="${pdfVia}" target="_blank" rel="noopener noreferrer" class="btn-accion"><i class="fas fa-file-pdf"></i> Diseño de Franjas (PDF)</a>`;
+            finalHtml += `<a href="${pdfVia}" target="_blank" rel="noopener noreferrer" class="btn-accion"><i class="fas fa-file-pdf"></i> Ver ficha de PDF</a>`;
         }
     } else if (tipo === 'epi') {
         title.innerHTML = `<i class="fas fa-draw-polygon"></i> ${p.NOMBRE}`;
@@ -2261,34 +2213,41 @@ function mostrarFicha(feature, coordinate) {
     } else if (tipo === 'surco-zona-reglamentada') {
         title.innerHTML = '<i class="fas fa-landmark"></i> Zona Reglamentada';
         finalHtml += '<p class="feature-description">Zona Reglamentada como Paisaje Arqueológico R.VM. N.º 041-2019-VMPCIC-MC.</p>';
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
     } else if (tipo === 'surco-faja') {
         title.innerHTML = '<i class="fas fa-water"></i> Faja marginal del Canal de Río Surco';
         finalHtml += '<p class="feature-description">Faja marginal del Canal de Río Surco según Resolución Jefatural N.º 332-2016-ANA.</p>';
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
     } else if (tipo === 'surco-uso-restringido') {
         title.innerHTML = '<i class="fas fa-leaf"></i> Zona de usos restringidos';
         finalHtml += '<p class="feature-description">Área asociada al Canal de Río Surco con usos restringidos.</p>';
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
     } else if (tipo === 'rio-surco') {
         var situacionSurco = p['situación'] || p.situacion || p.TIPO || 'Canal de Río Surco';
         title.innerHTML = '<i class="fas fa-water"></i> Río Surco';
         agregarFilaValida(htmlRows, 'Situación', situacionSurco);
         agregarFilaValida(htmlRows, 'Longitud', p.LONGITUD ? Number(p.LONGITUD).toLocaleString('es-PE', { maximumFractionDigits: 2 }) + ' m' : '');
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
     } else if (tipo === 'bien-cultural-huaca') {
-        title.innerHTML = '<i class="fas fa-landmark"></i> Zona Arqueológica Huaca San Borja';
-        agregarFilaValida(htmlRows, 'Nombre', 'Zona Arqueológica Huaca San Borja');
+        var nombreBienCultural = p.NOMBRE || 'Bien Cultural Inmueble';
+        var nombreBienNormalizado = normalizarTextoFiltro(nombreBienCultural);
+        title.innerHTML = '<i class="fas fa-landmark"></i> ' + escaparHtml(nombreBienCultural);
+        agregarFilaValida(htmlRows, 'Nombre', nombreBienCultural);
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver PDF');
+        if (nombreBienNormalizado.includes('calera')) {
+            finalHtml += botonPdfFicha(rutaArchivoPdf('pdf/rio-surco', PDF_FICHAS_RIO_SURCO.calera1), 'Ver ficha de PDF Sector 1');
+            finalHtml += botonPdfFicha(rutaArchivoPdf('pdf/rio-surco', PDF_FICHAS_RIO_SURCO.calera2), 'Ver ficha de PDF Sector 2');
+        } else {
+            finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
+        }
     }
 
     if (tipo === 'parque') {
         var pdfParque = rutaPdfParque(p);
         finalHtml = construirStreetView(coordinate)
-            + '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-chart-pie"></i> VER FICHA DEL PARQUE</button>'
-            + botonPdfFicha(pdfParque, 'Ver PDF');
+            + '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-chart-pie"></i> Ver área y dimensiones del parque</button>'
+            + botonPdfFicha(pdfParque, 'Ver ficha de PDF');
     }
 
     content.innerHTML = finalHtml;
@@ -2298,6 +2257,7 @@ function mostrarFicha(feature, coordinate) {
 
 var PRIORIDAD_CLICK_FEATURE = {
     'arbol': 5,
+    'bien-cultural-huaca': 8,
     'via': 10,
     'rio-surco': 12,
     'juan-pasaje-calle': 14,
@@ -2309,11 +2269,8 @@ var PRIORIDAD_CLICK_FEATURE = {
     'surco-zona-reglamentada': 30,
     'surco-faja': 31,
     'surco-uso-restringido': 32,
-    'bien-cultural-huaca': 33,
     'urb-juan': 45,
-    'atu': 80,
-    'subsector': 90,
-    'sector': 95
+    'atu': 80
 };
 
 function areaFeatureParaPrioridad(feature) {
@@ -2328,7 +2285,7 @@ function featureInteractivaEnPixel(pixel, hitTolerance) {
 
     map.forEachFeatureAtPixel(pixelBusqueda, function (feature, layer) {
         var tipo = feature && feature.get('__tipo');
-        if (!feature || layer === layerHighlight || tipo === 'manzana' || tipo === 'limite-distrital') return;
+        if (!feature || layer === layerHighlight || tipo === 'manzana' || tipo === 'manzana-juan' || tipo === 'limite-distrital' || tipo === 'sector' || tipo === 'subsector') return;
 
         candidatos.push({
             feature: feature,

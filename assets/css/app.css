@@ -1443,6 +1443,10 @@ img {
     border-left-color: #2563eb;
 }
 
+.legend-group--manzanas {
+    border-left-color: #64748b;
+}
+
 .legend-group--limit {
     border-left-color: #111827;
 }
