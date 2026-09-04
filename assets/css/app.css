@@ -576,41 +576,6 @@ img {
     background: #0b6b3c;
 }
 
-.park3d-container canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    filter: saturate(1.04) contrast(1.02);
-}
-
-.park3d-hint {
-    position: absolute;
-    left: 14px;
-    bottom: 14px;
-    z-index: 4;
-    padding: 7px 9px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, .9);
-    color: #64748b;
-    font-size: 10px;
-    pointer-events: none;
-}
-
-.park3d-loading {
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    display: grid;
-    place-items: center;
-    background: rgba(232, 238, 234, .92);
-    color: #475569;
-    font-size: 13px;
-}
-
-.park3d-loading.hidden {
-    display: none;
-}
-
 .park3d-panel {
     overflow: auto;
     padding: 18px 22px;
@@ -661,13 +626,6 @@ img {
     height: 1px;
     margin: 15px 0;
     background: var(--sb-border);
-}
-
-.park3d-legend {
-    display: grid;
-    gap: 9px;
-    color: #64748b;
-    font-size: 10.5px;
 }
 
 .park3d-model-info {
@@ -1101,39 +1059,6 @@ img {
     color: #56645e;
     font: 8.5px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
     white-space: normal;
-}
-
-.park3d-legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-}
-
-.park3d-swatch {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-}
-
-.park3d-swatch--ground {
-    background: #dfe9dc;
-    border: 1px solid #7aa178;
-}
-
-.park3d-swatch--canopy {
-    border-radius: 50%;
-    background: #5b8f5a;
-}
-
-.park3d-swatch--metric {
-    border: 2px solid #cf9c42;
-    border-radius: 50%;
-    background: rgba(207, 156, 66, .08);
-}
-
-.park3d-swatch--trunk {
-    background: #765642;
 }
 
 .ol-tree-popover {
