@@ -82,6 +82,7 @@ function cerrarPortada() {
     var m = document.getElementById('welcome-modal');
     m.style.opacity = '0';
     setTimeout(function () { m.style.display = 'none'; }, 300);
+    programarCargaManzanasBase();
     window.setTimeout(function () {
         mostrarInfoTitulo(9000);
         mostrarAyudaInfoTitulo(20000);
@@ -398,14 +399,34 @@ function filtroActivo(id) {
     return !input || input.checked;
 }
 
+var styleParquesBase = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#65a30d', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(101, 163, 13, 0.28)' }) });
+var styleRedVialBase = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#334155', width: 2.5, lineCap: 'round' }) });
+var styleSectoresBase = new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: 'rgba(1, 107, 255, 0.95)', width: 1.9 }),
+    fill: new ol.style.Fill({ color: 'rgba(1, 107, 255, 0.04)' })
+});
+var styleSubsectoresBase = new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: 'rgba(229, 229, 229, 0.95)', width: 1.9 }),
+    fill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.01)' })
+});
+var cacheEtiquetasParques = new WeakMap();
+var cacheEtiquetasRedVial = new WeakMap();
+var cacheEtiquetasSectores = new WeakMap();
+var cacheEtiquetasSubsectores = new WeakMap();
+
 var styleParquesFn = function (feature, resolution) {
-    var styles = [new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#65a30d', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(101, 163, 13, 0.28)' }) })];
+    var styles = [styleParquesBase];
     var z = map.getView().getZoomForResolution(resolution);
     var nombre = feature.get('NOMBRE');
     if (z > 16 && nombre) {
-        styles.push(new ol.style.Style({
-            text: new ol.style.Text({ text: nombre, placement: 'polygon', fill: new ol.style.Fill({ color: '#064e3b' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 3 }), font: 'bold 11px sans-serif', overflow: true })
-        }));
+        var etiquetaParque = cacheEtiquetasParques.get(feature);
+        if (!etiquetaParque) {
+            etiquetaParque = new ol.style.Style({
+                text: new ol.style.Text({ text: nombre, placement: 'polygon', fill: new ol.style.Fill({ color: '#064e3b' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 3 }), font: 'bold 11px sans-serif', overflow: true })
+            });
+            cacheEtiquetasParques.set(feature, etiquetaParque);
+        }
+        styles.push(etiquetaParque);
     }
     return styles;
 };
@@ -437,19 +458,21 @@ function crearEstiloEtiqueta(texto, opciones) {
 var styleSectoresFn = function (feature, resolution) {
     var zoom = map.getView().getZoomForResolution(resolution);
     var nombre = feature.get('Sectores') ? String(feature.get('Sectores')) : '';
-    var styles = [new ol.style.Style({
-        stroke: new ol.style.Stroke({ color: 'rgba(1, 107, 255, 0.95)', width: 1.9 }),
-        fill: new ol.style.Fill({ color: 'rgba(1, 107, 255, 0.04)' })
-    })];
+    var styles = [styleSectoresBase];
     if (zoom >= 13.5 && nombre) {
-        styles.push(new ol.style.Style({
-            text: crearEstiloEtiqueta(nombre, {
-                fill: '#016bff',
-                stroke: '#ffffff',
-                strokeWidth: 3.5,
-                font: "bold 19px 'Arial Black', sans-serif"
-            })
-        }));
+        var etiquetaSector = cacheEtiquetasSectores.get(feature);
+        if (!etiquetaSector) {
+            etiquetaSector = new ol.style.Style({
+                text: crearEstiloEtiqueta(nombre, {
+                    fill: '#016bff',
+                    stroke: '#ffffff',
+                    strokeWidth: 3.5,
+                    font: "bold 19px 'Arial Black', sans-serif"
+                })
+            });
+            cacheEtiquetasSectores.set(feature, etiquetaSector);
+        }
+        styles.push(etiquetaSector);
     }
     return styles;
 };
@@ -457,19 +480,21 @@ var styleSectoresFn = function (feature, resolution) {
 var styleSubsectoresFn = function (feature, resolution) {
     var zoom = map.getView().getZoomForResolution(resolution);
     var nombre = feature.get('RefName') ? String(feature.get('RefName')) : '';
-    var styles = [new ol.style.Style({
-        stroke: new ol.style.Stroke({ color: 'rgba(229, 229, 229, 0.95)', width: 1.9 }),
-        fill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.01)' })
-    })];
+    var styles = [styleSubsectoresBase];
     if (zoom >= 13.5 && nombre) {
-        styles.push(new ol.style.Style({
-            text: crearEstiloEtiqueta(nombre, {
-                fill: '#ffffff',
-                stroke: '#05009a',
-                strokeWidth: 4,
-                font: "bold 13px 'Arial Black', sans-serif"
-            })
-        }));
+        var etiquetaSubsector = cacheEtiquetasSubsectores.get(feature);
+        if (!etiquetaSubsector) {
+            etiquetaSubsector = new ol.style.Style({
+                text: crearEstiloEtiqueta(nombre, {
+                    fill: '#ffffff',
+                    stroke: '#05009a',
+                    strokeWidth: 4,
+                    font: "bold 13px 'Arial Black', sans-serif"
+                })
+            });
+            cacheEtiquetasSubsectores.set(feature, etiquetaSubsector);
+        }
+        styles.push(etiquetaSubsector);
     }
     return styles;
 };
@@ -507,14 +532,19 @@ var styleRedVialFn = function (feature, resolution) {
         }
     }
 
-    var styles = [new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#334155', width: 2.5, lineCap: 'round' }) })];
+    var styles = [styleRedVialBase];
 
     var z = map.getView().getZoomForResolution(resolution);
     var nombre = feature.get('NOMBRE_FIN');
     if (z > 16.5 && nombre) {
-        styles.push(new ol.style.Style({
-            text: new ol.style.Text({ text: nombre, placement: 'line', maxAngle: Math.PI / 4, fill: new ol.style.Fill({ color: '#0f172a' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 3.5 }), font: 'bold 11px sans-serif' })
-        }));
+        var etiquetaVia = cacheEtiquetasRedVial.get(feature);
+        if (!etiquetaVia) {
+            etiquetaVia = new ol.style.Style({
+                text: new ol.style.Text({ text: nombre, placement: 'line', maxAngle: Math.PI / 4, fill: new ol.style.Fill({ color: '#0f172a' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 3.5 }), font: 'bold 11px sans-serif' })
+            });
+            cacheEtiquetasRedVial.set(feature, etiquetaVia);
+        }
+        styles.push(etiquetaVia);
     }
     return styles;
 };
@@ -597,20 +627,99 @@ var extentTorresSanBorja = crearExtentDesdeFeatures(featuresPistaTorres.length ?
 var featuresManzanasGenerales = [];
 var featuresManzanasJuan = featuresSubmanzanasJuan.slice();
 var featuresManzanasTorresSanBorja = [];
-(typeof json_Manzanas_0 !== 'undefined' ? crearFeatures(json_Manzanas_0, 'manzana') : []).forEach(function (feature) {
-    var geometry = feature.getGeometry();
-    var perteneceAJuan = geometry && !ol.extent.isEmpty(extentJuanXXIII) && ol.extent.intersects(geometry.getExtent(), extentJuanXXIII);
-    var perteneceATorresSanBorja = geometry && !ol.extent.isEmpty(extentTorresSanBorja) && ol.extent.intersects(geometry.getExtent(), extentTorresSanBorja);
-    if (!perteneceAJuan && !perteneceATorresSanBorja) featuresManzanasGenerales.push(feature);
-    if (perteneceAJuan && !featuresSubmanzanasJuan.length) {
-        feature.set('__tipo', 'manzana-juan', true);
-        featuresManzanasJuan.push(feature);
+var manzanasBaseCargadas = false;
+var promesaManzanasBase = null;
+
+function esManzanaExcluidaTorresSanBorja(feature) {
+    return String(feature.get('SECTORES') || '').trim() === '3';
+}
+
+function aplicarManzanasBase() {
+    if (manzanasBaseCargadas || typeof json_Manzanas_0 === 'undefined') return;
+    manzanasBaseCargadas = true;
+
+    var nuevasGenerales = [];
+    var nuevasTorresSanBorja = [];
+    var nuevasJuanFallback = [];
+
+    crearFeatures(json_Manzanas_0, 'manzana').forEach(function (feature) {
+        var geometry = feature.getGeometry();
+        var perteneceAJuan = geometry && !ol.extent.isEmpty(extentJuanXXIII) && ol.extent.intersects(geometry.getExtent(), extentJuanXXIII);
+        var perteneceATorresSanBorja = geometry
+            && !esManzanaExcluidaTorresSanBorja(feature)
+            && !ol.extent.isEmpty(extentTorresSanBorja)
+            && ol.extent.intersects(geometry.getExtent(), extentTorresSanBorja);
+        if (!perteneceAJuan && !perteneceATorresSanBorja) nuevasGenerales.push(feature);
+        if (perteneceAJuan && !featuresSubmanzanasJuan.length) {
+            feature.set('__tipo', 'manzana-juan', true);
+            nuevasJuanFallback.push(feature);
+        }
+        if (perteneceATorresSanBorja) {
+            feature.set('__tipo', 'manzana-tsb', true);
+            nuevasTorresSanBorja.push(feature);
+        }
+    });
+
+    featuresManzanasGenerales = nuevasGenerales;
+    featuresManzanasTorresSanBorja = nuevasTorresSanBorja;
+    if (!featuresSubmanzanasJuan.length) featuresManzanasJuan = nuevasJuanFallback;
+
+    if (typeof vectorManzanas !== 'undefined') {
+        vectorManzanas.getSource().clear(true);
+        vectorManzanas.getSource().addFeatures(featuresManzanasGenerales);
+        vectorManzanas.setVisible(filtroActivo('chk-manzanas'));
     }
-    if (perteneceATorresSanBorja) {
-        feature.set('__tipo', 'manzana-tsb', true);
-        featuresManzanasTorresSanBorja.push(feature);
+    if (typeof vectorManzanasTorresSanBorja !== 'undefined') {
+        vectorManzanasTorresSanBorja.getSource().clear(true);
+        vectorManzanasTorresSanBorja.getSource().addFeatures(featuresManzanasTorresSanBorja);
+        actualizarEstadoTorresSanBorja();
     }
-});
+    if (!featuresSubmanzanasJuan.length && typeof vectorManzanasJuan !== 'undefined') {
+        vectorManzanasJuan.getSource().clear(true);
+        vectorManzanasJuan.getSource().addFeatures(featuresManzanasJuan);
+        actualizarEstadoJuan();
+    }
+}
+
+function cargarManzanasBaseDiferidas() {
+    if (manzanasBaseCargadas) return Promise.resolve();
+    if (typeof json_Manzanas_0 !== 'undefined') {
+        aplicarManzanasBase();
+        return Promise.resolve();
+    }
+    if (promesaManzanasBase) return promesaManzanasBase;
+
+    promesaManzanasBase = new Promise(function (resolve, reject) {
+        var script = document.createElement('script');
+        script.src = 'layers/manzanas_0.js';
+        script.async = true;
+        script.onload = function () {
+            aplicarManzanasBase();
+            resolve();
+        };
+        script.onerror = function () {
+            reject(new Error('No se pudo cargar layers/manzanas_0.js'));
+        };
+        document.head.appendChild(script);
+    });
+    return promesaManzanasBase;
+}
+
+function programarCargaManzanasBase() {
+    var ejecutar = function () {
+        cargarManzanasBaseDiferidas().catch(function (error) {
+            console.warn(error);
+        });
+    };
+
+    if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(ejecutar, { timeout: 1800 });
+    } else {
+        window.setTimeout(ejecutar, 450);
+    }
+}
+
+aplicarManzanasBase();
 
 var vectorManzanas = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresManzanasGenerales }), style: styleManzanas, zIndex: 10 });
 var vectorManzanasTorresSanBorja = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresManzanasTorresSanBorja }), style: styleManzanasTorresSanBorja, zIndex: 10.7 });
@@ -1129,11 +1238,19 @@ actualizarEstadoRecreacion();
 
 ['chk-tsb-general', 'chk-epi-tsb', 'chk-pista-tsb', 'chk-manzanas-tsb'].forEach(function (id) {
     var input = document.getElementById(id);
-    if (input) input.onchange = actualizarEstadoTorresSanBorja;
+    if (input) input.onchange = function () {
+        if ((id === 'chk-tsb-general' || id === 'chk-manzanas-tsb') && filtroActivo('chk-tsb-general') && filtroActivo('chk-manzanas-tsb')) {
+            cargarManzanasBaseDiferidas().catch(function (error) { console.warn(error); });
+        }
+        actualizarEstadoTorresSanBorja();
+    };
 });
 actualizarEstadoTorresSanBorja();
 
 document.getElementById('chk-manzanas').onchange = function (event) {
+    if (event.target.checked) {
+        cargarManzanasBaseDiferidas().catch(function (error) { console.warn(error); });
+    }
     vectorManzanas.setVisible(event.target.checked);
 };
 vectorManzanas.setVisible(filtroActivo('chk-manzanas'));
@@ -2048,23 +2165,54 @@ map.on('pointermove', function (evt) {
 // BUSCADOR CON ENMARCADO Y AUTO-CLICK
 // ==========================================
 var dictBusqueda = [];
-[vectorRedVial, vectorParques, vectorEpiLimatambo, vectorEpiTorres].forEach(layer => {
-    layer.getSource().getFeatures().forEach(f => {
-        var p = f.getProperties();
-        var nom = p.NOMBRE_FIN || p.NOMBRE || "";
-        if (nom && nom.trim() !== "") {
-            var tipoFeature = f.get('__tipo');
-            var tipoResultado = tipoFeature === 'via' ? 'Vía' : (tipoFeature === 'parque' ? 'Parque' : 'EPI');
-            dictBusqueda.push({ label: nom, searchToken: nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(), tipo: tipoResultado, feature: f });
-        }
+var indiceBusquedaListo = false;
+var indiceBusquedaProgramado = false;
+
+function construirIndiceBusqueda() {
+    if (indiceBusquedaListo) return;
+    indiceBusquedaProgramado = false;
+
+    var nuevoIndice = [];
+    [vectorRedVial, vectorParques, vectorEpiLimatambo, vectorEpiTorres].forEach(layer => {
+        layer.getSource().getFeatures().forEach(f => {
+            var p = f.getProperties();
+            var nom = p.NOMBRE_FIN || p.NOMBRE || "";
+            if (nom && nom.trim() !== "") {
+                var tipoFeature = f.get('__tipo');
+                var tipoResultado = tipoFeature === 'via' ? 'Vía' : (tipoFeature === 'parque' ? 'Parque' : 'EPI');
+                nuevoIndice.push({ label: nom, searchToken: nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(), tipo: tipoResultado, feature: f });
+            }
+        });
     });
-});
-dictBusqueda.sort((a, b) => a.label.localeCompare(b.label));
+    nuevoIndice.sort((a, b) => a.label.localeCompare(b.label));
+    dictBusqueda = nuevoIndice;
+    indiceBusquedaListo = true;
+}
+
+function programarIndiceBusqueda() {
+    if (indiceBusquedaListo || indiceBusquedaProgramado) return;
+    indiceBusquedaProgramado = true;
+
+    var ejecutar = function () { construirIndiceBusqueda(); };
+    if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(ejecutar, { timeout: 3000 });
+    } else {
+        window.setTimeout(ejecutar, 300);
+    }
+}
+
+if (document.readyState === 'complete') {
+    programarIndiceBusqueda();
+} else {
+    window.addEventListener('load', programarIndiceBusqueda, { once: true });
+}
 
 var inputBuscador = document.getElementById('buscador-rgep');
 var resDiv = document.getElementById('lista-resultados');
 
 inputBuscador.addEventListener('input', function () {
+    if (!indiceBusquedaListo) construirIndiceBusqueda();
+
     var val = this.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     resDiv.innerHTML = '';
     if (val.length < 2) { resDiv.style.display = 'none'; return; }
