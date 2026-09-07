@@ -1601,6 +1601,15 @@ img {
     margin-left: 0;
 }
 
+.legend-branch--parks {
+    margin-bottom: 10px;
+}
+
+.legend-branch--parks .legend-subgroup--child {
+    border-left: 0;
+    padding-left: 0;
+}
+
 .capa-item input[type="checkbox"] {
     transform: scale(1.08);
     margin-right: 10px;

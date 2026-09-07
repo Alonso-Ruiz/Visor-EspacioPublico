@@ -184,6 +184,7 @@ function idLeyendaParaFeature(feature) {
 
     if (tipo === 'via') return idLeyendaParaVia(feature);
     if (tipo === 'parque') return 'chk-parques';
+    if (tipo === 'arbol') return 'chk-arboles';
     if (tipo === 'jardin-aislamiento') return 'chk-jardines-aislamiento';
     if (tipo === 'movilidad-lt') return 'chk-movilidad-lt';
     if (tipo === 'pista-tsb') return 'chk-pista-tsb';
@@ -335,11 +336,11 @@ var styleManzanasLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ 
 var styleEpiLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#047857', width: 2 }), fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.2)' }) });
 var styleEpiTorres = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#0f766e', width: 2 }), fill: new ol.style.Fill({ color: 'rgba(45, 212, 191, 0.22)' }) });
 var stylePistaTorresSanBorja = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#1f2937', width: 1.2 }), fill: new ol.style.Fill({ color: 'rgba(133, 182, 111, 0.32)' }) });
-var styleMovilidadLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#7f1d1d', width: 1.4 }), fill: new ol.style.Fill({ color: 'rgba(196, 60, 57, 0.22)' }) });
+var styleMovilidadLimatambo = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#1f2937', width: 1.2 }), fill: new ol.style.Fill({ color: 'rgba(133, 182, 111, 0.32)' }) });
 var styleServidumbre = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#a16207', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(251, 191, 36, 0.3)' }) });
-var styleUrbJuan = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#be123c', width: 1.5 }), fill: new ol.style.Fill({ color: 'rgba(232, 113, 141, 0.35)' }) });
-var styleJardinesAislamiento = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#92400e', width: 1.2 }), fill: new ol.style.Fill({ color: 'rgba(229, 182, 54, 0.38)' }) });
-var styleJuanAlamedas = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#7f1d1d', width: 1.3 }), fill: new ol.style.Fill({ color: 'rgba(208, 28, 66, 0.34)' }) });
+var styleUrbJuan = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#1f2937', width: 1.2 }), fill: new ol.style.Fill({ color: 'rgba(133, 182, 111, 0.32)' }) });
+var styleJardinesAislamiento = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#166534', width: 1.35 }), fill: new ol.style.Fill({ color: 'rgba(74, 222, 128, 0.24)' }) });
+var styleJuanAlamedas = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#047857', width: 2 }), fill: new ol.style.Fill({ color: 'rgba(16, 185, 129, 0.2)' }) });
 var styleJuanPasajesCalles = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#111827', width: 2.4 }), fill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.02)' }) });
 var styleLimiteDistrital = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#111827', width: 3, lineDash: [10, 5] }), fill: new ol.style.Fill({ color: 'rgba(255, 255, 255, 0.01)' }) });
 var styleSurcoZonaReglamentada = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#dc2626', width: 2, lineDash: [8, 5] }), fill: new ol.style.Fill({ color: 'rgba(220, 38, 38, 0.08)' }) });
@@ -923,7 +924,7 @@ function asegurarArbolesMapa() {
 }
 
 function revisarCargaArbolesPorZoom() {
-    if (map.getView().getZoom() >= ARBOLES_ZOOM_VISIBLE - .2) asegurarArbolesMapa();
+    if (filtroActivo('chk-recreacion-general') && filtroActivo('chk-parques') && filtroActivo('chk-arboles') && map.getView().getZoom() >= ARBOLES_ZOOM_VISIBLE - .2) asegurarArbolesMapa();
 }
 
 map.getView().on('change:resolution', revisarCargaArbolesPorZoom);
@@ -1117,15 +1118,19 @@ function actualizarEstadoSectores() {
 
 function actualizarEstadoRecreacion() {
     var activo = filtroActivo('chk-recreacion-general');
-    ['chk-parques', 'chk-jardines-aislamiento'].forEach(function (id) {
+    ['chk-parques', 'chk-arboles', 'chk-jardines-aislamiento'].forEach(function (id) {
         var input = document.getElementById(id);
         if (input) input.disabled = !activo;
     });
     var parquesActivos = activo && filtroActivo('chk-parques');
+    var arbolesActivos = parquesActivos && filtroActivo('chk-arboles');
+    var chkArboles = document.getElementById('chk-arboles');
+    if (chkArboles) chkArboles.disabled = !parquesActivos;
     vectorParques.setVisible(parquesActivos);
-    vectorArbolesCopa.setVisible(parquesActivos);
-    vectorArbolesPunto.setVisible(parquesActivos);
-    if (!parquesActivos) {
+    vectorArbolesCopa.setVisible(arbolesActivos);
+    vectorArbolesPunto.setVisible(arbolesActivos);
+    if (arbolesActivos) revisarCargaArbolesPorZoom();
+    if (!arbolesActivos) {
         if (overlayArbol) overlayArbol.setPosition(undefined);
         if (arbolPopupEl) arbolPopupEl.classList.add('hidden');
         marcarArbolSeleccionado(null);
@@ -1230,7 +1235,7 @@ actualizarEstadoSectores();
 
 document.getElementById('chk-limite-distrital').onchange = e => vectorLimiteDistrital.setVisible(e.target.checked);
 
-['chk-recreacion-general', 'chk-parques', 'chk-jardines-aislamiento'].forEach(function (id) {
+['chk-recreacion-general', 'chk-parques', 'chk-arboles', 'chk-jardines-aislamiento'].forEach(function (id) {
     var input = document.getElementById(id);
     if (input) input.onchange = actualizarEstadoRecreacion;
 });
@@ -2139,6 +2144,7 @@ map.on('singleclick', function (evt) {
     var pixelBusqueda = pixelOriginalDesdeVistaInclinada(evt.pixel);
     if (feature && feature.get('__tipo') === 'arbol') {
         mostrarPopupArbol(feature, map.getCoordinateFromPixel(pixelBusqueda));
+        resaltarLeyendaParaFeature(feature);
         return;
     }
     if (overlayArbol) overlayArbol.setPosition(undefined);

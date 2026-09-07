@@ -392,10 +392,18 @@
                     <p class="legend-description legend-definition" id="def-recreacion">Espacios públicos destinados a
                         la recreación pública: plazas, plazuelas, anfiteatros, losas deportivas, parques, jardines,
                         alamedas, malecones y similares.</p>
-                    <div class="capa-item capa-item--separated">
-                        <input type="checkbox" id="chk-parques" checked>
-                        <label for="chk-parques">Parques</label>
-                    </div>
+                    <details class="legend-branch legend-branch--nested legend-branch--parks" open>
+                        <summary>
+                            <input type="checkbox" id="chk-parques" checked>
+                            <span>Parques</span>
+                        </summary>
+                        <div class="legend-subgroup legend-subgroup--child">
+                            <div class="capa-item sub-item sub-item--deep">
+                                <input type="checkbox" id="chk-arboles" checked>
+                                <label for="chk-arboles">Árboles censo 2018</label>
+                            </div>
+                        </div>
+                    </details>
                     <div class="capa-item">
                         <input type="checkbox" id="chk-jardines-aislamiento" checked>
                         <label for="chk-jardines-aislamiento">Jardines de Aislamiento</label>
