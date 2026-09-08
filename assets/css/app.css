@@ -647,6 +647,210 @@ img {
     background: #ffffff;
 }
 
+.park3d-info-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    padding: 5px;
+    border-radius: 11px;
+    background: #f3f7f4;
+}
+
+.park3d-info-tab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    min-width: 0;
+    border: 0;
+    border-radius: 10px;
+    padding: 9px 7px;
+    background: transparent;
+    color: #66766d;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+.park3d-info-tab svg {
+    width: 24px;
+    height: 24px;
+}
+
+.park3d-info-tab:hover {
+    color: var(--sb-green-dark);
+}
+
+.park3d-info-tab.active {
+    background: #ffffff;
+    color: var(--sb-green-dark);
+    box-shadow: 0 5px 18px rgba(15, 23, 42, .09);
+}
+
+.park3d-info-view.hidden {
+    display: none;
+}
+
+.park3d-facts {
+    min-height: 100%;
+}
+
+.park3d-fact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.park3d-fact {
+    min-width: 0;
+    padding: 14px 15px;
+    border: 1px solid #dfe7e1;
+    border-radius: 12px;
+    background: #f8fbf9;
+}
+
+.park3d-fact span {
+    display: block;
+    color: #66766d;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.park3d-fact strong {
+    display: block;
+    margin-top: 3px;
+    color: #064e2b;
+    font-size: 22px;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+}
+
+.park3d-fact-pie-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 2px 8px;
+}
+
+#park3d-fact-pie {
+    display: block;
+    width: min(100%, 180px);
+    height: auto;
+    margin: 0 auto;
+}
+
+.park3d-fact-pie-legend {
+    display: grid;
+    gap: 10px;
+    color: #34463c;
+    font-size: 14px;
+}
+
+.park3d-fact-pie-legend span {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.park3d-fact-pie-legend i {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+}
+
+.park3d-fact-pie-legend b {
+    color: #66766d;
+}
+
+.park3d-margin-bars {
+    display: grid;
+    gap: 14px;
+    margin-top: 8px;
+}
+
+.park3d-margin-bar-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 5px;
+    font-size: 13px;
+}
+
+.park3d-margin-bar-top span {
+    color: #66766d;
+}
+
+.park3d-margin-bar-top strong {
+    color: #102319;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.park3d-margin-bar-track {
+    height: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #e6ece7;
+}
+
+.park3d-margin-bar-fill {
+    height: 100%;
+    border-radius: inherit;
+}
+
+.park3d-fact-note {
+    margin: 0 2px 10px;
+    color: #66766d;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.park3d-reference-list {
+    display: grid;
+}
+
+.park3d-reference-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 2px;
+    border-bottom: 1px solid #dfe7e1;
+    font-size: 14px;
+}
+
+.park3d-reference-row:last-child {
+    border-bottom: 0;
+}
+
+.park3d-reference-row span {
+    color: #66766d;
+}
+
+.park3d-reference-row strong {
+    color: #102319;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.park3d-empty-note {
+    margin: 6px 2px;
+    color: #66766d;
+    font-size: 13px;
+}
+
+.park3d-disclaimer {
+    margin: 16px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid #dfe7e1;
+    color: #66766d;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
 .park3d-calc-head {
     display: flex;
     align-items: flex-start;

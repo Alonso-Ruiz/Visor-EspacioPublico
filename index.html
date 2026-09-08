@@ -165,107 +165,52 @@
                         rel="noopener noreferrer">Abrir Street View en Google Maps ↗</a>
                 </div>
                 <aside class="park3d-panel">
-                    <div class="park3d-stat"><span>Área del parque</span><strong id="park3d-area">—</strong></div>
-                    <div class="park3d-stat"><span>Árboles contenidos</span><strong id="park3d-trees">—</strong></div>
-                    <div class="park3d-stat"><span>Verde actual</span><strong id="park3d-green-actual">—</strong></div>
-                    <div class="park3d-stat"><span>Verde mínimo</span><strong id="park3d-green-min">—</strong></div>
-                    <div class="park3d-stat"><span>Gris actual</span><strong id="park3d-gray-actual">—</strong></div>
-                    <div class="park3d-stat"><span>Gris máximo</span><strong id="park3d-gray-max">—</strong></div>
-                    <div class="park3d-stat"><span>Cobertura arbórea objetivo</span><strong
-                            id="park3d-tree-cover">—</strong></div>
-                    <div class="park3d-divider"></div>
-                    <div id="park3d-model-info" class="park3d-model-info">Vegetación realista · carga bajo demanda</div>
-                    <section class="park3d-calculator" id="park3d-calculator">
-                        <div class="park3d-calc-head">
-                            <div>
-                                <span class="park3d-micro">Índice de ocupación</span>
-                                <h3>Estado y capacidad normativa</h3>
-                            </div>
-                            <button type="button" class="park3d-mini-btn" id="park3d-reset-calc">Situación
-                                actual</button>
+                    <section class="park3d-facts" id="park3d-facts">
+                        <div class="park3d-info-tabs" role="tablist" aria-label="Información del parque">
+                            <button type="button" class="park3d-info-tab active" id="park3d-tab-resumen"
+                                data-park3d-info-view="resumen" role="tab" aria-selected="true"
+                                aria-controls="park3d-view-resumen" aria-label="Resumen" title="Resumen">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="12" width="4" height="8" rx="1" fill="currentColor"/><rect x="10" y="7" width="4" height="13" rx="1" fill="currentColor"/><rect x="17" y="3" width="4" height="17" rx="1" fill="currentColor"/></svg>
+                            </button>
+                            <button type="button" class="park3d-info-tab" id="park3d-tab-parametros"
+                                data-park3d-info-view="parametros" role="tab" aria-selected="false"
+                                aria-controls="park3d-view-parametros" aria-label="Parámetros de referencia" title="Parámetros de referencia">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4" y1="17" x2="14" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                            </button>
+                            <button type="button" class="park3d-info-tab" id="park3d-tab-usos"
+                                data-park3d-info-view="usos" role="tab" aria-selected="false"
+                                aria-controls="park3d-view-usos" aria-label="Usos permitidos y topes" title="Usos permitidos y topes">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="3" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3" y="13" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                            </button>
                         </div>
-                        <div class="park3d-verdict-card neutral" id="park3d-verdict-card">
-                            <div class="park3d-verdict-icon" id="park3d-verdict-icon">–</div>
-                            <div class="park3d-verdict-body">
-                                <strong id="park3d-verdict-title">Sin propuesta ingresada</strong>
-                                <p id="park3d-verdict-text">Ingresa las áreas propuestas para evaluar su conformidad con
-                                    los parámetros del parque.</p>
+
+                        <div class="park3d-info-view" id="park3d-view-resumen" role="tabpanel"
+                            aria-labelledby="park3d-tab-resumen">
+                            <div class="park3d-fact-grid">
+                                <div class="park3d-fact"><span>Área total</span><strong id="park3d-area">—</strong></div>
+                                <div class="park3d-fact"><span>Árboles</span><strong id="park3d-trees">—</strong></div>
+                                <div class="park3d-fact"><span>Área verde</span><strong id="park3d-green-actual">—</strong></div>
+                                <div class="park3d-fact"><span>Piso duro</span><strong id="park3d-gray-actual">—</strong></div>
                             </div>
+                            <div class="park3d-fact-pie-wrap">
+                                <svg id="park3d-fact-pie" viewBox="0 0 180 180" role="img" aria-label="Ocupación actual del parque"></svg>
+                                <div class="park3d-fact-pie-legend" id="park3d-fact-pie-legend"></div>
+                            </div>
+                            <div class="park3d-margin-bars" id="park3d-margin-bars"></div>
                         </div>
-                        <div class="park3d-occ-pie-wrap">
-                            <svg id="park3d-occ-pie" viewBox="0 0 180 180" width="180" height="180"
-                                aria-label="Gráfico de reparto de ocupación"></svg>
-                            <div class="park3d-occ-pie-legend" id="park3d-occ-pie-legend"></div>
+
+                        <div class="park3d-info-view hidden" id="park3d-view-parametros" role="tabpanel"
+                            aria-labelledby="park3d-tab-parametros">
+                            <p class="park3d-fact-note">Parámetros del parque. Referencia de planificación, no constituye aprobación.</p>
+                            <div class="park3d-reference-list" id="park3d-reference-list"></div>
                         </div>
-                        <div class="park3d-status-box neutral" id="park3d-calc-overlay-warn">Ingresa áreas de una
-                            propuesta para visualizar el reparto de ocupación.</div>
-                        <details class="park3d-acc" open>
-                            <summary><span class="park3d-acc-ic">✎</span> Ingresar propuesta</summary>
-                            <div class="park3d-acc-body">
-                                <div class="park3d-calc-grid">
-                                    <label><span>Área verde</span>
-                                        <div><input id="park3d-calc-green" type="number" min="0" step="1"><b>m²</b>
-                                        </div>
-                                    </label>
-                                    <label><span>Piso duro</span>
-                                        <div><input id="park3d-calc-gray" type="number" min="0" step="1"><b>m²</b></div>
-                                    </label>
-                                    <label><span>Área techada</span>
-                                        <div><input id="park3d-calc-footprint" type="number" min="0" step="1"
-                                                value="0"><b>m²</b></div>
-                                    </label>
-                                    <label><span>Servicios de apoyo</span>
-                                        <div><input id="park3d-calc-support" type="number" min="0" step="1"
-                                                value="0"><b>m²</b></div>
-                                    </label>
-                                    <label><span>Juegos y estar</span>
-                                        <div><input id="park3d-calc-recreation" type="number" min="0" step="1"
-                                                value="0"><b>m²</b></div>
-                                    </label>
-                                    <label><span>Kioscos/cafetería</span>
-                                        <div><input id="park3d-calc-commercial" type="number" min="0" step="1"
-                                                value="0"><b>m²</b></div>
-                                    </label>
-                                    <label><span>Otros usos</span>
-                                        <div><input id="park3d-calc-other" type="number" min="0" step="1"
-                                                value="0"><b>m²</b></div>
-                                    </label>
-                                </div>
-                            </div>
-                        </details>
-                        <details class="park3d-acc">
-                            <summary><span class="park3d-acc-ic">▤</span> Capacidad máxima por uso</summary>
-                            <div class="park3d-acc-body">
-                                <div class="park3d-allow-list" id="park3d-allow-list"></div>
-                            </div>
-                        </details>
-                        <details class="park3d-acc">
-                            <summary><span class="park3d-acc-ic">∑</span> Detalle técnico (porcentajes e índices)
-                            </summary>
-                            <div class="park3d-acc-body">
-                                <div class="park3d-calc-results">
-                                    <div><span>Verde calculado</span><strong id="park3d-calc-green-pct">—</strong><em
-                                            id="park3d-calc-green-status"></em></div>
-                                    <div><span>Gris calculado</span><strong id="park3d-calc-gray-pct">—</strong><em
-                                            id="park3d-calc-gray-status"></em></div>
-                                    <div><span>Índice de ocupación</span><strong id="park3d-calc-io">—</strong><em
-                                            id="park3d-calc-io-status"></em></div>
-                                    <div><span>Huella efectiva máxima</span><strong
-                                            id="park3d-calc-effective-footprint">—</strong><em>menor entre IO × área y
-                                            tope absoluto</em></div>
-                                    <div><span>Superficie sin asignar</span><strong
-                                            id="park3d-calc-unassigned">—</strong><em
-                                            id="park3d-calc-allocation-status"></em></div>
-                                </div>
-                                <div class="park3d-calc-use-results" id="park3d-calc-use-results"></div>
-                                <div class="park3d-formula-box">
-                                    <strong>Fórmulas aplicadas</strong>
-                                    <code>% = área propuesta / área total × 100</code>
-                                    <code>IO = huella techada / área total</code>
-                                    <code>Huella máx. efectiva = mín.(IO normativo × área total, huella máx. absoluta)</code>
-                                </div>
-                            </div>
-                        </details>
+
+                        <div class="park3d-info-view hidden" id="park3d-view-usos" role="tabpanel"
+                            aria-labelledby="park3d-tab-usos">
+                            <div class="park3d-reference-list" id="park3d-use-list"></div>
+                        </div>
+
+                        <p class="park3d-disclaimer">Información referencial. No constituye aprobación ni evaluación técnica municipal.</p>
                     </section>
                 </aside>
             </div>

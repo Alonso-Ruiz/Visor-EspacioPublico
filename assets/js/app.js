@@ -1726,6 +1726,113 @@ function renderOcupacionPiePark3D(datos) {
     }).join('');
 }
 
+function valorReferenciaPark3D(valor) {
+    if (valor === null || valor === undefined || String(valor).trim() === '' || String(valor).trim() === '-') return '—';
+    return String(valor);
+}
+
+function renderPieInformativoPark3D(area, greenPct, grayPct) {
+    var svg = document.getElementById('park3d-fact-pie');
+    var legend = document.getElementById('park3d-fact-pie-legend');
+    if (!svg || !legend) return;
+
+    var greenArea = Number.isFinite(greenPct)
+        ? area * greenPct / 100
+        : (Number.isFinite(grayPct) ? area * (100 - grayPct) / 100 : area);
+    var grayArea = Number.isFinite(grayPct) ? area * grayPct / 100 : Math.max(0, area - greenArea);
+    var segments = [['green', greenArea], ['gray', grayArea]].filter(function (item) { return item[1] > 0; });
+    var colors = { green: '#5a8a42', gray: '#8a8f94' };
+    var labels = { green: 'Área verde', gray: 'Piso duro' };
+    var cx = 90, cy = 90, radius = 78, angle0 = -Math.PI / 2;
+    var paths = [];
+
+    if (!segments.length || area <= 0) {
+        paths.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + radius + '" fill="#dfe6da"/>');
+    } else {
+        segments.forEach(function (item) {
+            var key = item[0];
+            var fraction = Math.min(1, item[1] / area);
+            var angle1 = angle0 + fraction * Math.PI * 2;
+            var x0 = cx + radius * Math.cos(angle0);
+            var y0 = cy + radius * Math.sin(angle0);
+            var x1 = cx + radius * Math.cos(angle1);
+            var y1 = cy + radius * Math.sin(angle1);
+            var largeArc = fraction > .5 ? 1 : 0;
+            if (fraction >= .999) {
+                paths.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + radius + '" fill="' + colors[key] + '"/>');
+            } else {
+                paths.push('<path d="M' + cx + ',' + cy + ' L' + x0.toFixed(2) + ',' + y0.toFixed(2) + ' A' + radius + ',' + radius + ' 0 ' + largeArc + ',1 ' + x1.toFixed(2) + ',' + y1.toFixed(2) + ' Z" fill="' + colors[key] + '"/>');
+            }
+            angle0 = angle1;
+        });
+    }
+
+    svg.innerHTML = paths.join('')
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="41" fill="#fff"/>'
+        + '<text x="' + cx + '" y="' + (cy - 2) + '" text-anchor="middle" font-size="11" fill="#5d6b62">ocupación</text>'
+        + '<text x="' + cx + '" y="' + (cy + 12) + '" text-anchor="middle" font-size="11" fill="#5d6b62">actual</text>';
+    legend.innerHTML = segments.map(function (item) {
+        var key = item[0];
+        return '<span><i style="background:' + colors[key] + '"></i><span>' + labels[key] + '</span><b>' + Math.round(item[1] / area * 100) + '%</b></span>';
+    }).join('');
+}
+
+function renderFichaInformativaPark3D(feature, treeCount) {
+    var p = feature.getProperties ? feature.getProperties() : {};
+    var area = numeroPositivoPark3D(p['ÁREA']) || 0;
+    var greenPct = porcentajeNumeroPark3D(p['%OCUP_VERD']);
+    var grayPct = porcentajeNumeroPark3D(p['%OCUP_GRIS']);
+    var minGreen = porcentajeNumeroPark3D(p['AREA VERDE']);
+    var maxGray = porcentajeNumeroPark3D(p.O_GRIS_MAX);
+
+    setTextoPark3D('park3d-area', formatoAreaPark3D(area));
+    setTextoPark3D('park3d-trees', treeCount);
+    setTextoPark3D('park3d-green-actual', Number.isFinite(greenPct) ? recortarNumeroPark3D(greenPct) + '%' : '—');
+    setTextoPark3D('park3d-gray-actual', Number.isFinite(grayPct) ? recortarNumeroPark3D(grayPct) + '%' : '—');
+    renderPieInformativoPark3D(area, greenPct, grayPct);
+
+    var bars = document.getElementById('park3d-margin-bars');
+    if (bars) {
+        var rows = [];
+        if (Number.isFinite(minGreen)) rows.push(['Área verde a conservar (mín.)', minGreen, '#5a8a42', formatoEnteroM2Park3D(area * minGreen / 100)]);
+        if (Number.isFinite(maxGray)) rows.push(['Margen de piso duro (máx.)', maxGray, '#8a8f94', formatoEnteroM2Park3D(area * maxGray / 100)]);
+        bars.innerHTML = rows.map(function (row) {
+            return '<div><div class="park3d-margin-bar-top"><span>' + row[0] + '</span><strong>' + recortarNumeroPark3D(row[1]) + '% · ' + row[3] + '</strong></div><div class="park3d-margin-bar-track"><div class="park3d-margin-bar-fill" style="width:' + Math.min(100, row[1]) + '%;background:' + row[2] + '"></div></div></div>';
+        }).join('');
+    }
+
+    var references = [
+        ['Área verde mínima', p['AREA VERDE']],
+        ['Ocupación de piso duro máx.', p.O_GRIS_MAX],
+        ['Cobertura arbórea', p.CO_ARBOREA],
+        ['Índice de ocupación (IO)', p['ÍNDIC_OCU']],
+        ['Huella techada máx.', Number.isFinite(numeroFlexiblePark3D(p['HT_MAX(m2)'])) ? recortarNumeroPark3D(numeroFlexiblePark3D(p['HT_MAX(m2)'])) + ' m²' : '—'],
+        ['Altura máxima', Number.isFinite(numeroFlexiblePark3D(p['ALT_MAX(m)'])) ? recortarNumeroPark3D(numeroFlexiblePark3D(p['ALT_MAX(m)'])) + ' m' : '—']
+    ];
+    var referenceList = document.getElementById('park3d-reference-list');
+    if (referenceList) {
+        referenceList.innerHTML = references.map(function (row) {
+            return '<div class="park3d-reference-row"><span>' + row[0] + '</span><strong>' + escaparHtml(valorReferenciaPark3D(row[1])) + '</strong></div>';
+        }).join('');
+    }
+
+    var uses = [
+        ['Servicios de apoyo', p.SOPORTE],
+        ['Juegos y áreas de estar', p.RECREATIVO],
+        ['Kioscos y cafeterías', p.COMERCIAL],
+        ['Otros usos', p.OTR_USOS]
+    ];
+    var useList = document.getElementById('park3d-use-list');
+    if (useList) {
+        var useRows = uses.map(function (row) {
+            var max = porcentajeNumeroPark3D(row[1]);
+            if (!Number.isFinite(max) || max <= 0) return '';
+            return '<div class="park3d-reference-row"><span>' + row[0] + '</span><strong>' + recortarNumeroPark3D(max) + '% · ' + formatoEnteroM2Park3D(area * max / 100) + '</strong></div>';
+        }).join('');
+        useList.innerHTML = useRows || '<p class="park3d-empty-note">Sin topes de uso definidos para este parque.</p>';
+    }
+}
+
 function renderConsultaPark3D(feature, datos) {
     var card = document.getElementById('park3d-verdict-card');
     if (!card) return;
@@ -1733,6 +1840,7 @@ function renderConsultaPark3D(feature, datos) {
     var text = document.getElementById('park3d-verdict-text');
     var icon = document.getElementById('park3d-verdict-icon');
     var list = document.getElementById('park3d-allow-list');
+    var parameterList = document.getElementById('park3d-parameter-list');
     var p = feature.getProperties ? feature.getProperties() : {};
     var problemas = [];
     if (datos.greenShort) problemas.push('el área verde queda por debajo del mínimo normativo');
@@ -1754,11 +1862,11 @@ function renderConsultaPark3D(feature, datos) {
         if (title) title.textContent = 'Conforme con la norma';
         if (text) text.textContent = 'La propuesta se encuentra dentro de los parámetros de ocupación establecidos para este parque.';
     }
-    if (!list) return;
-    var rows = [];
-    if (Number.isFinite(datos.minGreen)) rows.push(['Área verde mínima a conservar', formatoEnteroM2Park3D(datos.area * datos.minGreen / 100), 'propuesto: ' + formatoEnteroM2Park3D(datos.green)]);
-    if (Number.isFinite(datos.maxGray)) rows.push(['Piso duro máximo', formatoEnteroM2Park3D(datos.area * datos.maxGray / 100), 'propuesto: ' + formatoEnteroM2Park3D(datos.gray)]);
-    if (datos.effectiveFinite !== null) rows.push(['Área techada máxima', formatoEnteroM2Park3D(datos.effective), 'propuesto: ' + formatoEnteroM2Park3D(datos.footprint)]);
+    var parameterRows = [];
+    if (Number.isFinite(datos.minGreen)) parameterRows.push(['Área verde mínima a conservar', formatoEnteroM2Park3D(datos.area * datos.minGreen / 100), 'propuesto: ' + formatoEnteroM2Park3D(datos.green)]);
+    if (Number.isFinite(datos.maxGray)) parameterRows.push(['Piso duro máximo', formatoEnteroM2Park3D(datos.area * datos.maxGray / 100), 'propuesto: ' + formatoEnteroM2Park3D(datos.gray)]);
+    if (datos.effectiveFinite !== null) parameterRows.push(['Área techada máxima', formatoEnteroM2Park3D(datos.effective), 'propuesto: ' + formatoEnteroM2Park3D(datos.footprint)]);
+    var useRows = [];
     [
         ['Servicios de apoyo · máximo', p.SOPORTE],
         ['Uso recreativo · máximo', p.RECREATIVO],
@@ -1766,11 +1874,15 @@ function renderConsultaPark3D(feature, datos) {
         ['Otros usos · máximo', p.OTR_USOS]
     ].forEach(function (item) {
         var max = porcentajeNumeroPark3D(item[1]);
-        if (Number.isFinite(max) && max > 0) rows.push([item[0], formatoEnteroM2Park3D(datos.area * max / 100), '']);
+        if (Number.isFinite(max) && max > 0) useRows.push([item[0], formatoEnteroM2Park3D(datos.area * max / 100), '']);
     });
-    list.innerHTML = rows.map(function (row) {
-        return '<div class="park3d-allow-row"><span>' + row[0] + '</span><strong>' + row[1] + (row[2] ? '<em>' + row[2] + '</em>' : '') + '</strong></div>';
-    }).join('');
+    var renderRows = function (rows) {
+        return rows.map(function (row) {
+            return '<div class="park3d-allow-row"><span>' + row[0] + '</span><strong>' + row[1] + (row[2] ? '<em>' + row[2] + '</em>' : '') + '</strong></div>';
+        }).join('');
+    };
+    if (parameterList) parameterList.innerHTML = renderRows(parameterRows);
+    if (list) list.innerHTML = renderRows(useRows);
 }
 
 function calcularOcupacionPark3D(feature) {
@@ -1870,36 +1982,37 @@ function calcularOcupacionPark3D(feature) {
     renderConsultaPark3D(feature, datos);
 }
 
-function iniciarCalculadoraPark3D(feature) {
-    var p = feature.getProperties ? feature.getProperties() : {};
-    var area = numeroPositivoPark3D(p['ÁREA']) || 0;
-    var greenActual = porcentajeNumeroPark3D(p['%OCUP_VERD']);
-    var grayActual = porcentajeNumeroPark3D(p['%OCUP_GRIS']);
-    var ids = ['park3d-calc-green', 'park3d-calc-gray', 'park3d-calc-footprint', 'park3d-calc-support', 'park3d-calc-recreation', 'park3d-calc-commercial', 'park3d-calc-other'];
-    var input = function (id) { return document.getElementById(id); };
-    if (input('park3d-calc-green')) input('park3d-calc-green').value = Number.isFinite(greenActual) ? (area * greenActual / 100).toFixed(1) : '';
-    if (input('park3d-calc-gray')) input('park3d-calc-gray').value = Number.isFinite(grayActual) ? (area * grayActual / 100).toFixed(1) : '';
-    ['park3d-calc-footprint', 'park3d-calc-support', 'park3d-calc-recreation', 'park3d-calc-commercial', 'park3d-calc-other'].forEach(function (id) {
-        if (input(id)) input(id).value = 0;
+function cambiarVistaInfoPark3D(vista) {
+    document.querySelectorAll('[data-park3d-info-view]').forEach(function (tab) {
+        var activa = tab.getAttribute('data-park3d-info-view') === vista;
+        tab.classList.toggle('active', activa);
+        tab.setAttribute('aria-selected', activa ? 'true' : 'false');
+        tab.tabIndex = activa ? 0 : -1;
     });
-    ids.forEach(function (id) {
-        if (input(id)) input(id).oninput = function () { calcularOcupacionPark3D(feature); };
+    ['resumen', 'parametros', 'usos'].forEach(function (nombre) {
+        var panel = document.getElementById('park3d-view-' + nombre);
+        if (panel) panel.classList.toggle('hidden', nombre !== vista);
     });
-    var reset = document.getElementById('park3d-reset-calc');
-    if (reset) reset.onclick = function () { iniciarCalculadoraPark3D(feature); };
-    document.querySelectorAll('[data-park3d-calc-view]').forEach(function (tab) {
+}
+
+function iniciarFichaInformativaPark3D(feature) {
+    document.querySelectorAll('[data-park3d-info-view]').forEach(function (tab) {
         tab.onclick = function () {
-            var view = tab.getAttribute('data-park3d-calc-view');
-            document.querySelectorAll('[data-park3d-calc-view]').forEach(function (other) {
-                other.classList.toggle('active', other === tab);
-            });
-            var consulta = document.getElementById('park3d-view-consulta');
-            var tecnica = document.getElementById('park3d-view-tecnica');
-            if (consulta) consulta.classList.toggle('hidden', view !== 'consulta');
-            if (tecnica) tecnica.classList.toggle('hidden', view !== 'tecnica');
+            cambiarVistaInfoPark3D(tab.getAttribute('data-park3d-info-view'));
+        };
+        tab.onkeydown = function (event) {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            var tabs = Array.prototype.slice.call(document.querySelectorAll('[data-park3d-info-view]'));
+            var index = tabs.indexOf(tab);
+            var next = event.key === 'ArrowRight' ? index + 1 : index - 1;
+            var target = tabs[(next + tabs.length) % tabs.length];
+            cambiarVistaInfoPark3D(target.getAttribute('data-park3d-info-view'));
+            target.focus();
+            event.preventDefault();
         };
     });
-    calcularOcupacionPark3D(feature);
+    cambiarVistaInfoPark3D('resumen');
+    renderFichaInformativaPark3D(feature, 'Cargando…');
 }
 
 async function abrirParque3D(feature) {
@@ -1910,14 +2023,7 @@ async function abrirParque3D(feature) {
     var p = targetFeature.getProperties();
     setTextoPark3D('park3d-code', p['CÓDIGO'] || ('ID ' + (p.ID || '—')));
     setTextoPark3D('park3d-title', p.NOMBRE || 'Ficha del parque');
-    setTextoPark3D('park3d-area', formatoAreaPark3D(p['ÁREA']));
-    setTextoPark3D('park3d-trees', 'Cargando…');
-    setTextoPark3D('park3d-green-actual', porcentajePark3D(p['%OCUP_VERD']));
-    setTextoPark3D('park3d-green-min', p['AREA VERDE'] || '—');
-    setTextoPark3D('park3d-gray-actual', porcentajePark3D(p['%OCUP_GRIS']));
-    setTextoPark3D('park3d-gray-max', p.O_GRIS_MAX || '—');
-    setTextoPark3D('park3d-tree-cover', p.CO_ARBOREA || '—');
-    iniciarCalculadoraPark3D(targetFeature);
+    iniciarFichaInformativaPark3D(targetFeature);
 
     var modal = document.getElementById('park3d-modal');
     if (modal) {
@@ -1938,8 +2044,7 @@ async function abrirParque3D(feature) {
 
     try {
         await asegurarArbolesMapa();
-        setTextoPark3D('park3d-trees', arbolesParaParque3D(targetFeature).length.toLocaleString('es-PE'));
-        setTextoPark3D('park3d-model-info', 'Ficha del parque · Street View · arbolado inventariado');
+        renderFichaInformativaPark3D(targetFeature, arbolesParaParque3D(targetFeature).length.toLocaleString('es-PE'));
     } catch (error) {
         console.error(error);
         setTextoPark3D('park3d-trees', '—');
@@ -2080,7 +2185,7 @@ function mostrarFicha(feature, coordinate) {
     if (tipo === 'parque') {
         var pdfParque = rutaPdfParque(p);
         finalHtml = construirStreetView(coordinate)
-            + '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-chart-pie"></i> Ver área y dimensiones del parque</button>'
+            + '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-chart-pie"></i> Ver parámetro del parque</button>'
             + botonPdfFicha(pdfParque, 'Ver ficha de PDF');
     }
 
