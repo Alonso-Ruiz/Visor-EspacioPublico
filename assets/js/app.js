@@ -2096,7 +2096,10 @@ function mostrarFicha(feature, coordinate) {
         agregarFilaValida(htmlRows, "Supermanzana", p.SUPERMANZA);
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
 
-        var enlaceEpi = enlaceHttpSeguro(p.LINK);
+        var codigoEpi = String(p['CÓDIGO'] || p.CODIGO || '').trim();
+        var enlaceEpi = codigoEpi === 'EPI-TL-18'
+            ? rutaPdfVia(p)
+            : enlaceHttpSeguro(p.LINK);
         if (enlaceEpi) {
             finalHtml += `<a href="${enlaceEpi}" target="_blank" rel="noopener noreferrer" class="btn-accion btn-accion--green"><i class="fas fa-file-pdf"></i> Documento del espacio integrado</a>`;
         }
