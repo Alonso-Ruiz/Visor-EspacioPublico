@@ -1342,11 +1342,11 @@ var PDF_FICHAS_PARQUES = [
     'Las_Begonias.pdf', 'Las_Lomas.pdf', 'Libertador_San_Martín.pdf', 'Los_Sauces.pdf',
     'María_Teresa_de_la_Cruz_Candamo.pdf', 'Mariano_Bustamante.pdf', 'Mariano_Santos.pdf',
     'Mario_Moreno.pdf', 'Mario_Polar_Ugarteche.pdf', 'Mariscal_Castilla.pdf',
-    'Medio_Ambiente.pdf', 'Minería.pdf', 'N°3.pdf', 'N°5.pdf',
+    'Medio_Ambiente.pdf', 'Minería.pdf', 'N°3.pdf', 'N°5.pdf', 'Parque_4A.pdf',
     'Nuestra_Señora_de_las_Nubes.pdf', 'Olímpico.pdf', 'Pallardelli.pdf', 'Plumereros.pdf',
     'Renacimiento.pdf', 'República_de_Grecia.pdf', 'República_de_Uruguay.pdf',
     'República_Popular_China.pdf', 'San_Borja_Portinari.pdf', 'San_Borja_Ramat_Gam_Israel.pdf',
-    'San_Francisco_de_Borja.pdf', 'San_Francisco.pdf', 'San_Juan_Masias.pdf',
+    'San_Francisco_de_Borja.pdf', 'San_Francisco.pdf', 'San_Juan_Masias.pdf', 'Plazuela_San_Juan_Masias.pdf',
     'San_Tomás.pdf', 'SEDAPAL.pdf', 'Strauss.pdf', 'Venecia.pdf', 'Veronés.pdf',
     'Violeta_Correa_de_Belaunde.pdf', 'Virgen_Inmaculada_Concepción.pdf',
     'Virgen_Maria_Auxiliadora.pdf', 'Virgen_Milagrosa.pdf'
@@ -1365,12 +1365,14 @@ var PDF_FICHAS_PARQUES_POR_CODIGO = {
     'PR-29': 'Ignacio_Marino.pdf',
     'PR-33': 'Javier_Prado_N°2.pdf',
     'PR-40': 'La_Junventud.pdf',
+    'PR-56': 'Parque_4A.pdf',
     'PR-57': 'N°3.pdf',
     'PR-58': 'N°5.pdf',
     'PR-59': 'Nuestra_Señora_de_las_Nubes.pdf',
     'PR-69': 'San_Francisco.pdf',
+    'PR-71': 'San_Juan_Masias.pdf',
     'PR-72': 'San_Tomás.pdf',
-    'PR-80': 'San_Juan_Masias.pdf'
+    'PR-80': 'Plazuela_San_Juan_Masias.pdf'
 };
 
 function clavePdfFicha(valor) {
