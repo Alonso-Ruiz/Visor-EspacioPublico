@@ -69,12 +69,6 @@ img {
     cursor: grabbing !important;
 }
 
-.ol-viewport.is-pitched .ol-layer { 
-    transform: translateY(var(--map-pitch-shift, 0%)) perspective(2400px) rotateX(var(--map-pitch, 0deg)) scale(var(--map-pitch-scale, 1.45));
-    transform-origin: center center;
-    will-change: transform;
-}
-
 /* =========================================
    PANEL IZQUIERDO (Buscador + Ficha)
    ========================================= */

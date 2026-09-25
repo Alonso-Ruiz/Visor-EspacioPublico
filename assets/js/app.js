@@ -608,6 +608,28 @@ if (typeof json_Secciones_Viales_3_6 !== 'undefined') {
     });
 }
 
+function actualizarDatosViales(features) {
+    features.forEach(function (feature) {
+        var codigoActual = String(feature.get('CÓDIGO') || '');
+        var codigoSeccion = /^VLP-CA-36[A-D]$/.test(codigoActual)
+            ? codigoActual.replace('VLP-', 'VLS-')
+            : codigoActual;
+        var seccion = seccionesPorCodigo[codigoSeccion];
+        if (!seccion) return;
+        feature.setProperties({
+            'CÓDIGO': seccion.CODIGO,
+            'CÓDIGO AN': seccion['CÓDIGO_AN'],
+            CLASIFIC: seccion.CLASIFICA,
+            TRAMO: seccion.TRAMO,
+            ANCHO: seccion.ANCHO,
+            FRANJAS: seccion.FRANJAS,
+            LINK: seccion.LINK,
+            LINKVERCEL: seccion.LINKVERCEL
+        }, true);
+    });
+    return features;
+}
+
 function crearExtentDesdeFeatures(features) {
     var extent = ol.extent.createEmpty();
     features.forEach(function (feature) {
@@ -751,7 +773,7 @@ var featuresHuacaSanBorja = typeof json_Bienes_culturales_Inmuebles_0 !== 'undef
 var vectorHuacaSanBorja = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresHuacaSanBorja }), style: styleHuacaSanBorja, zIndex: 11 });
 var vectorJardinesAislamiento = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Jardndeaislamiento_1 !== 'undefined' ? crearFeatures(json_Jardndeaislamiento_1, 'jardin-aislamiento') : [] }), style: styleJardinesAislamiento, zIndex: 12 });
 var vectorParques = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 12 });
-var vectorRedVial = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? crearFeatures(json_red_vial_4, 'via') : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
+var vectorRedVial = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? actualizarDatosViales(crearFeatures(json_red_vial_4, 'via')) : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
 var sourceArbolesCopa = new ol.source.Vector();
 var sourceArbolesPunto = new ol.source.Vector();
 var vectorArbolesCopa = new ol.layer.Vector({ source: sourceArbolesCopa, style: styleArbolCopa, minZoom: ARBOLES_ZOOM_VISIBLE, zIndex: 17 });
@@ -779,19 +801,11 @@ map.addOverlay(overlayArbol);
 
 // NORTE Y CENTRADO DE ROTACIÓN
 var northBtn = document.getElementById('btn-north');
-var inclinacionMapaActiva = false;
 var rotandoMapaConBotonDerecho = false;
 var rotacionMouseX = 0;
-var inclinacionVisual = 0;
 
 northBtn.onclick = function () {
     var view = map.getView();
-    inclinacionMapaActiva = false;
-    inclinacionVisual = 0;
-    map.getViewport().style.setProperty('--map-pitch', '0deg');
-    map.getViewport().style.setProperty('--map-pitch-scale', '1');
-    map.getViewport().style.setProperty('--map-pitch-shift', '0%');
-    map.getViewport().classList.remove('is-pitched');
     view.animate({ rotation: 0, duration: 500, easing: ol.easing.easeOut });
 };
 map.getView().on('change:rotation', function () { document.getElementById('compass-icon').style.transform = `rotate(${map.getView().getRotation()}rad)`; });
@@ -803,17 +817,8 @@ map.getViewport().addEventListener('contextmenu', function (event) {
 function moverRotacionMapaDerecho(event) {
     if (!rotandoMapaConBotonDerecho) return;
     var dx = event.clientX - rotacionMouseX;
-    var dy = event.movementY || 0;
     rotacionMouseX = event.clientX;
     map.getView().setRotation(map.getView().getRotation() + dx * 0.004);
-    inclinacionVisual = Math.max(0, Math.min(45, inclinacionVisual + dy * 0.25));
-    var factorInclinacion = inclinacionVisual / 45;
-    var escalaInclinacion = 1 + factorInclinacion * .55;
-    map.getViewport().style.setProperty('--map-pitch', inclinacionVisual + 'deg');
-    map.getViewport().style.setProperty('--map-pitch-scale', escalaInclinacion.toFixed(2));
-    map.getViewport().style.setProperty('--map-pitch-shift', (4 * factorInclinacion).toFixed(1) + '%');
-    map.getViewport().classList.toggle('is-pitched', inclinacionVisual > 1);
-    inclinacionMapaActiva = inclinacionVisual > 1;
 }
 
 map.getViewport().addEventListener('mousedown', function (event) {
@@ -832,31 +837,6 @@ window.addEventListener('mouseup', function (event) {
     window.removeEventListener('mousemove', moverRotacionMapaDerecho);
     map.getViewport().style.cursor = '';
 });
-
-function pixelOriginalDesdeVistaInclinada(pixel) {
-    var viewport = map.getViewport();
-    if (!viewport.classList.contains('is-pitched') || typeof DOMMatrixReadOnly === 'undefined' || typeof DOMPoint === 'undefined') {
-        return pixel;
-    }
-
-    var layer = viewport.querySelector('.ol-layer');
-    if (!layer) return pixel;
-    var transform = window.getComputedStyle(layer).transform;
-    if (!transform || transform === 'none') return pixel;
-
-    try {
-        var rect = viewport.getBoundingClientRect();
-        var originX = rect.width / 2;
-        var originY = rect.height;
-        var matrix = new DOMMatrixReadOnly(transform);
-        var inverse = matrix.inverse();
-        var point = inverse.transformPoint(new DOMPoint(pixel[0] - originX, pixel[1] - originY, 0, 1));
-        var w = point.w || 1;
-        return [point.x / w + originX, point.y / w + originY];
-    } catch (error) {
-        return pixel;
-    }
-}
 
 function ellipsePolygonArbolLonLat(center, radioEW, radioNS, steps) {
     var lon = center[0];
@@ -1322,6 +1302,8 @@ function numeroSeguro(valor) {
 
 function rutaPdfVia(propiedades) {
     var codigo = String(propiedades['CÓDIGO'] || propiedades.CODIGO || '').trim();
+    if (/^VLS-CA-36[A-D]$/.test(codigo)) return '';
+    codigo = codigo.replace(/^EPI-TBS-/, 'EPI-TSB-');
     return /^[A-Z0-9-]+$/.test(codigo) ? 'pdf/' + encodeURIComponent(codigo) + '.pdf' : '';
 }
 
@@ -1804,6 +1786,9 @@ function renderFichaInformativaPark3D(feature, treeCount) {
     }
 
     var references = [
+        ['Clasificación', p.CLASIFICAC],
+        ['Tratamiento urbano', p.ATU],
+        ['Tratamiento detallado', p['ATU DETALL']],
         ['Área verde mínima', p['AREA VERDE']],
         ['Ocupación de piso duro máx.', p.O_GRIS_MAX],
         ['Cobertura arbórea', p.CO_ARBOREA],
@@ -2098,10 +2083,7 @@ function mostrarFicha(feature, coordinate) {
         agregarFilaValida(htmlRows, "Supermanzana", p.SUPERMANZA);
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
 
-        var codigoEpi = String(p['CÓDIGO'] || p.CODIGO || '').trim();
-        var enlaceEpi = codigoEpi === 'EPI-TL-18'
-            ? rutaPdfVia(p)
-            : enlaceHttpSeguro(p.LINK);
+        var enlaceEpi = rutaPdfVia(p);
         if (enlaceEpi) {
             finalHtml += `<a href="${enlaceEpi}" target="_blank" rel="noopener noreferrer" class="btn-accion btn-accion--green"><i class="fas fa-file-pdf"></i> Documento del espacio integrado</a>`;
         }
@@ -2225,9 +2207,8 @@ function areaFeatureParaPrioridad(feature) {
 
 function featureInteractivaEnPixel(pixel, hitTolerance) {
     var candidatos = [];
-    var pixelBusqueda = pixelOriginalDesdeVistaInclinada(pixel);
 
-    map.forEachFeatureAtPixel(pixelBusqueda, function (feature, layer) {
+    map.forEachFeatureAtPixel(pixel, function (feature, layer) {
         var tipo = feature && feature.get('__tipo');
         if (!feature || layer === layerHighlight || tipo === 'manzana' || tipo === 'manzana-juan' || tipo === 'area-libre-juan' || tipo === 'manzana-tsb' || tipo === 'juan-pasaje-calle' || tipo === 'movilidad-lt' || tipo === 'pista-tsb' || tipo === 'limite-distrital' || tipo === 'sector' || tipo === 'subsector') return;
 
@@ -2250,17 +2231,16 @@ function featureInteractivaEnPixel(pixel, hitTolerance) {
 
 map.on('singleclick', function (evt) {
     if (document.body.classList.contains('streetview-targeting')) return;
-    var feature = featureInteractivaEnPixel(evt.pixel, inclinacionMapaActiva ? 9 : 5);
-    var pixelBusqueda = pixelOriginalDesdeVistaInclinada(evt.pixel);
+    var feature = featureInteractivaEnPixel(evt.pixel, 5);
     if (feature && feature.get('__tipo') === 'arbol') {
-        mostrarPopupArbol(feature, map.getCoordinateFromPixel(pixelBusqueda));
+        mostrarPopupArbol(feature, map.getCoordinateFromPixel(evt.pixel));
         resaltarLeyendaParaFeature(feature);
         return;
     }
     if (overlayArbol) overlayArbol.setPosition(undefined);
     if (arbolPopupEl) arbolPopupEl.classList.add('hidden');
     marcarArbolSeleccionado(null);
-    mostrarFicha(feature, map.getCoordinateFromPixel(pixelBusqueda));
+    mostrarFicha(feature, map.getCoordinateFromPixel(evt.pixel));
 });
 
 var pointerMovePendiente = null;
@@ -2272,7 +2252,7 @@ map.on('pointermove', function (evt) {
     pointerMoveRAF = requestAnimationFrame(function () {
         pointerMoveRAF = null;
         if (!pointerMovePendiente) return;
-        var hit = featureInteractivaEnPixel(pointerMovePendiente, inclinacionMapaActiva ? 8 : 4);
+        var hit = featureInteractivaEnPixel(pointerMovePendiente, 4);
         map.getViewport().classList.toggle('is-hovering', !!hit);
     });
 });

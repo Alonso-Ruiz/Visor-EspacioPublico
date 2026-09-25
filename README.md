@@ -8,12 +8,12 @@ Aplicación web estática para consultar el Reglamento de Espacios Públicos de 
 - `assets/css/app.css`: estilos visuales y adaptación responsive.
 - `assets/js/app.js`: interacción, mapa, búsqueda y ficha técnica.
 - `layers/`: datos geográficos y datos complementarios utilizados por el visor.
-- `styles/`: estilos cartográficos y leyendas exportados por QGIS. Se conserva para incorporar futuras entregas de capas.
+- `styles/`: estilo cartográfico de bienes culturales utilizado por el visor.
 - `images/`: imágenes de identidad visual.
 - `pdf/`: diseños de franjas viales servidos localmente. Los archivos se identifican por el código de la vía, por ejemplo `VLP-AV-01.pdf`.
 - `anexos/`: publicación oficial y anexos generales mostrados desde el cuadro informativo del visor.
 
-`assets/css` controla la interfaz del visor, mientras que `styles` pertenece a las capas geográficas. No deben mezclarse ni eliminarse los estilos cartográficos al actualizar una entrega de QGIS.
+`assets/css` controla la interfaz del visor, mientras que `styles` pertenece a las capas geográficas. Al actualizar una entrega de QGIS, conserva solo los estilos que el visor cargue o utilice.
 
 ## Ejecución local
 
