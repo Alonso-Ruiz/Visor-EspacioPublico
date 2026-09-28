@@ -1,130 +1,83 @@
-var headerInfoTimer = null;
-var infoHintTimer = null;
-var cerrandoAnexosPorFicha = false;
 var leyendaResaltadaTimer = null;
 
-function actualizarAyudaInfoTitulo() {
-    var header = document.getElementById('header-box');
-    var anexos = document.getElementById('anexos-detalle');
-    var resumenAnexos = document.getElementById('anexos-summary-text');
-    var hint = document.getElementById('info-title-hint');
-    var visible = header && !header.classList.contains('info-hidden');
-    if (hint) hint.textContent = visible ? 'Clic para ocultar' : 'Clic para ver anexos';
-    if (resumenAnexos) resumenAnexos.textContent = anexos && anexos.open ? 'Ocultar anexos' : 'Ver anexos';
-}
-
-function mostrarAyudaInfoTitulo(duracion) {
-    var hint = document.getElementById('info-title-hint');
-    if (!hint) return;
-    actualizarAyudaInfoTitulo();
-    hint.classList.add('is-visible');
-    if (infoHintTimer) window.clearTimeout(infoHintTimer);
-    infoHintTimer = window.setTimeout(function () {
-        hint.classList.remove('is-visible');
-    }, duracion || 20000);
-}
-
 function ocultarInfoTitulo() {
-    var header = document.getElementById('header-box');
-    var button = document.getElementById('btn-info-title');
-    var anexos = document.getElementById('anexos-detalle');
-    if (headerInfoTimer) window.clearTimeout(headerInfoTimer);
-    if (anexos && anexos.open) {
-        cerrandoAnexosPorFicha = true;
-        anexos.open = false;
-    }
-    if (header) {
-        header.classList.remove('anexos-open');
-        header.classList.add('info-hidden');
-        header.setAttribute('aria-hidden', 'true');
-    }
-    if (button) button.setAttribute('aria-expanded', 'false');
-    actualizarAyudaInfoTitulo();
+    var panel = document.getElementById('header-box');
+    panel.classList.add('info-hidden');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.inert = true;
+    document.getElementById('btn-info-title').setAttribute('aria-expanded', 'false');
 }
 
 function despejarAnexosParaFicha() {
-    var header = document.getElementById('header-box');
-    var button = document.getElementById('btn-info-title');
-    var anexos = document.getElementById('anexos-detalle');
-
-    if (headerInfoTimer) window.clearTimeout(headerInfoTimer);
-    if (anexos && anexos.open) {
-        cerrandoAnexosPorFicha = true;
-        anexos.open = false;
-        window.setTimeout(function () { cerrandoAnexosPorFicha = false; }, 120);
-    }
-
-    if (header) {
-        header.classList.remove('anexos-open');
-        header.classList.add('info-hidden');
-        header.setAttribute('aria-hidden', 'true');
-    }
-    if (button) button.setAttribute('aria-expanded', 'false');
-    actualizarAyudaInfoTitulo();
+    ocultarInfoTitulo();
 }
 
-function mostrarInfoTitulo(duracion) {
-    var header = document.getElementById('header-box');
-    var button = document.getElementById('btn-info-title');
-    var anexos = document.getElementById('anexos-detalle');
-    if (!header) return;
-    header.classList.remove('info-hidden');
-    header.setAttribute('aria-hidden', 'false');
-    if (button) button.setAttribute('aria-expanded', 'true');
-    if (headerInfoTimer) window.clearTimeout(headerInfoTimer);
-    if (duracion && (!anexos || !anexos.open)) {
-        headerInfoTimer = window.setTimeout(ocultarInfoTitulo, duracion || 9000);
-    }
-    actualizarAyudaInfoTitulo();
+function mostrarInfoTitulo() {
+    var panel = document.getElementById('header-box');
+    panel.classList.remove('info-hidden');
+    panel.setAttribute('aria-hidden', 'false');
+    panel.inert = false;
+    document.getElementById('btn-info-title').setAttribute('aria-expanded', 'true');
+    document.getElementById('sat-opacity-panel').hidden = true;
+    document.getElementById('btn-sat-opacity').setAttribute('aria-expanded', 'false');
+    if (window.innerWidth <= 896) cambiarEstadoLeyenda(false);
 }
 
 function cerrarPortada() {
-    var m = document.getElementById('welcome-modal');
-    m.style.opacity = '0';
-    setTimeout(function () { m.style.display = 'none'; }, 300);
+    var modal = document.getElementById('welcome-modal');
+    document.body.classList.add('visor-entered');
+    modal.style.opacity = '0';
+    modal.inert = true;
+    setTimeout(function () { modal.style.display = 'none'; }, 300);
     programarCargaManzanasBase();
-    window.setTimeout(function () {
-        mostrarInfoTitulo(9000);
-        mostrarAyudaInfoTitulo(20000);
-    }, 350);
+    if (window.innerWidth <= 896) {
+        map.updateSize();
+        var limite = vectorLimiteDistrital.getSource().getExtent();
+        if (limite.every(Number.isFinite)) {
+            map.getView().fit(limite, { padding: [100, 24, 130, 24], maxZoom: 14 });
+        }
+    }
+    document.getElementById('map').focus({ preventScroll: true });
 }
 
 document.querySelectorAll('[data-action="close-welcome"]').forEach(function (button) {
     button.addEventListener('click', cerrarPortada);
 });
-
 document.getElementById('btn-info-title').addEventListener('click', function () {
-    var header = document.getElementById('header-box');
-    if (header && !header.classList.contains('info-hidden')) {
-        ocultarInfoTitulo();
-    } else {
-        mostrarInfoTitulo();
-        mostrarAyudaInfoTitulo(2500);
-    }
+    if (this.getAttribute('aria-expanded') === 'true') ocultarInfoTitulo();
+    else mostrarInfoTitulo();
 });
-
-document.getElementById('anexos-detalle').addEventListener('toggle', function () {
-    var header = document.getElementById('header-box');
-    header.classList.toggle('anexos-open', this.open);
-    if (headerInfoTimer) window.clearTimeout(headerInfoTimer);
-    if (cerrandoAnexosPorFicha && !this.open) {
-        cerrandoAnexosPorFicha = false;
-        ocultarInfoTitulo();
-        return;
-    }
-    if (this.open) {
-        mostrarInfoTitulo();
-    } else {
-        ocultarInfoTitulo();
-        return;
-    }
-    actualizarAyudaInfoTitulo();
+document.getElementById('btn-cerrar-anexos').addEventListener('click', function () {
+    ocultarInfoTitulo();
+    document.getElementById('btn-info-title').focus({ preventScroll: true });
 });
 
 var panelDer = document.getElementById('panel-derecho');
 var btnAbrir = document.getElementById('btn-abrir-panel');
-document.getElementById('btn-cerrar-panel').onclick = function () { panelDer.classList.add('oculto'); btnAbrir.style.display = 'flex'; };
-btnAbrir.onclick = function () { panelDer.classList.remove('oculto'); btnAbrir.style.display = 'none'; };
+function cambiarEstadoLeyenda(abierta) {
+    panelDer.classList.toggle('oculto', !abierta);
+    panelDer.setAttribute('aria-hidden', String(!abierta));
+    panelDer.inert = !abierta;
+    document.body.classList.toggle('panel-open', abierta);
+    btnAbrir.setAttribute('aria-expanded', String(abierta));
+    if (abierta && window.innerWidth <= 896) {
+        ocultarInfoTitulo();
+        document.getElementById('sat-opacity-panel').hidden = true;
+        document.getElementById('btn-sat-opacity').setAttribute('aria-expanded', 'false');
+    }
+}
+document.getElementById('btn-cerrar-panel').onclick = function () {
+    cambiarEstadoLeyenda(false);
+    btnAbrir.focus({ preventScroll: true });
+};
+btnAbrir.onclick = function () { cambiarEstadoLeyenda(true); };
+document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape') return;
+    ocultarInfoTitulo();
+    cambiarEstadoLeyenda(false);
+    document.getElementById('sat-opacity-panel').hidden = true;
+    document.getElementById('btn-sat-opacity').setAttribute('aria-expanded', 'false');
+});
 
 function featurePerteneceALayer(feature, layer) {
     return !!(feature && layer && layer.getSource && layer.getSource().hasFeature(feature));
@@ -229,10 +182,7 @@ function resaltarLeyendaParaFeature(feature) {
     var elemento = elementoVisualLeyenda(input);
     if (!elemento) return;
 
-    if (panelDer && panelDer.classList.contains('oculto')) {
-        panelDer.classList.remove('oculto');
-        if (btnAbrir) btnAbrir.style.display = 'none';
-    }
+    if (panelDer && window.innerWidth > 896) cambiarEstadoLeyenda(true);
 
     abrirDetallesPadres(elemento);
 
@@ -242,7 +192,9 @@ function resaltarLeyendaParaFeature(feature) {
     });
 
     window.setTimeout(function () {
-        elemento.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        if (!panelDer.classList.contains('oculto')) {
+            elemento.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        }
         elemento.classList.add('legend-focus');
         leyendaResaltadaTimer = window.setTimeout(function () {
             elemento.classList.remove('legend-focus');
@@ -1277,6 +1229,7 @@ satOpacityButton.addEventListener('click', function (event) {
     var isOpen = satOpacityButton.getAttribute('aria-expanded') === 'true';
     satOpacityButton.setAttribute('aria-expanded', String(!isOpen));
     satOpacityPanel.hidden = isOpen;
+    if (!isOpen) ocultarInfoTitulo();
 });
 satOpacityPanel.addEventListener('click', function (event) {
     event.stopPropagation();
@@ -2178,6 +2131,7 @@ function mostrarFicha(feature, coordinate) {
 
     content.innerHTML = finalHtml;
     ficha.style.display = 'flex';
+    if (window.innerWidth <= 896) cambiarEstadoLeyenda(false);
     resaltarLeyendaParaFeature(feature);
 }
 
@@ -2305,8 +2259,17 @@ if (document.readyState === 'complete') {
 
 var inputBuscador = document.getElementById('buscador-rgep');
 var resDiv = document.getElementById('lista-resultados');
+var limpiarBusqueda = document.getElementById('btn-limpiar-busqueda');
+limpiarBusqueda.addEventListener('click', function () {
+    inputBuscador.value = '';
+    limpiarBusqueda.hidden = true;
+    resDiv.style.display = 'none';
+    cerrarFicha();
+    inputBuscador.focus();
+});
 
 inputBuscador.addEventListener('input', function () {
+    limpiarBusqueda.hidden = !this.value;
     if (!indiceBusquedaListo) construirIndiceBusqueda();
 
     var val = this.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -2325,15 +2288,17 @@ inputBuscador.addEventListener('input', function () {
             item.innerHTML = `<span class="res-titulo">${v.label}</span><span class="res-sub">${v.tipo}</span>`;
             item.onclick = function () {
                 inputBuscador.value = v.label;
+                limpiarBusqueda.hidden = false;
                 resDiv.style.display = 'none';
                 inputBuscador.blur();
 
                 var ext = v.feature.getGeometry().getExtent();
                 var center = ol.extent.getCenter(ext);
 
-                var pLeft = window.innerWidth <= 896 ? 20 : 400;
-                var pBottom = window.innerWidth <= 896 ? 120 : 50;
-                map.getView().fit(ext, { padding: [50, 50, pBottom, pLeft], maxZoom: 18, duration: 800 });
+                var pLeft = window.innerWidth <= 896 ? 20 : 365;
+                var pBottom = window.innerWidth <= 896 ? Math.round(window.innerHeight * 0.48) : 90;
+                var pRight = window.innerWidth <= 896 ? 20 : Math.min(350, window.innerWidth * 0.42) + 60;
+                map.getView().fit(ext, { padding: [window.innerWidth <= 896 ? 95 : 85, pRight, pBottom, pLeft], maxZoom: 18, duration: 800 });
 
                 setTimeout(function () { mostrarFicha(v.feature, center); }, 850);
             };

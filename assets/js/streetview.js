@@ -128,6 +128,10 @@
     });
 
     button.addEventListener('pointercancel', cancelStreetViewMode);
+    button.addEventListener('click', function(event) {
+        // Keyboard activation has no pointer sequence.
+        if (event.detail === 0) setTargeting(!targeting);
+    });
 
     map.on('pointermove', function(event) {
         if (!targeting || dragging) return;
