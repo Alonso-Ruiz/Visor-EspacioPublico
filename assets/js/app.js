@@ -73,6 +73,10 @@ document.getElementById('btn-cerrar-panel').onclick = function () {
 btnAbrir.onclick = function () { cambiarEstadoLeyenda(true); };
 document.addEventListener('keydown', function (event) {
     if (event.key !== 'Escape') return;
+    if (window.innerWidth <= 896 && ficha && ficha.style.display === 'flex') {
+        cerrarFicha();
+        return;
+    }
     ocultarInfoTitulo();
     cambiarEstadoLeyenda(false);
     document.getElementById('sat-opacity-panel').hidden = true;
@@ -203,6 +207,8 @@ function resaltarLeyendaParaFeature(feature) {
 }
 
 var ficha = document.getElementById('ficha-tecnica');
+var fichaCloseTimer = null;
+var fichaStreetTimer = null;
 var parque3DSeleccionado = null;
 var parque3DCacheArboles = new Map();
 var arbolesMapaPromise = null;
@@ -211,7 +217,19 @@ var arbolSeleccionadoId = null;
 var overlayArbol = null;
 
 function cerrarFicha() {
-    ficha.style.display = 'none';
+    window.clearTimeout(fichaStreetTimer);
+    ficha.querySelectorAll('iframe').forEach(function (frame) { frame.removeAttribute('src'); });
+    document.body.classList.remove('ficha-open');
+    ficha.setAttribute('aria-hidden', 'true');
+    ficha.inert = true;
+    if (fichaCloseTimer) window.clearTimeout(fichaCloseTimer);
+    if (window.innerWidth > 896) {
+        ficha.style.display = 'none';
+    } else {
+        fichaCloseTimer = window.setTimeout(function () {
+            if (!document.body.classList.contains('ficha-open')) ficha.style.display = 'none';
+        }, 340);
+    }
     sourceHighlight.clear();
 }
 
@@ -324,6 +342,14 @@ var ATU_STYLE_CONFIG = {
     'Renovación 3': { id: 'chk-atu-renovacion-3', parent: 'chk-atu-renovacion', color: '199, 175, 237' }
 };
 
+Object.keys(ATU_STYLE_CONFIG).forEach(function (tipo) {
+    var config = ATU_STYLE_CONFIG[tipo];
+    config.style = new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: 'rgba(15, 23, 42, 0.45)', width: 0.8 }),
+        fill: new ol.style.Fill({ color: 'rgba(' + config.color + ', 0.32)' })
+    });
+});
+
 var styleRioSurcoFn = function (feature) {
     if (!filtroActivo('chk-natural-general')) return null;
     if (!filtroActivo('chk-canal-surco')) return null;
@@ -332,23 +358,24 @@ var styleRioSurcoFn = function (feature) {
     var cubierta = situacion.includes('cubierta') && !descubierta;
     if (cubierta && !filtroActivo('chk-surco-zona-cubierta')) return null;
     if (descubierta && !filtroActivo('chk-surco-zona-descubierta')) return null;
-    return new ol.style.Style({
-        stroke: new ol.style.Stroke({
-            color: cubierta ? '#2563eb' : '#0891b2',
-            width: cubierta ? 3 : 2.4,
-            lineDash: cubierta ? null : [8, 5],
-            lineCap: 'round',
-            lineJoin: 'round'
-        })
-    });
+    return cubierta ? styleRioSurcoCubierto : styleRioSurcoDescubierto;
 };
+
+var styleRioSurcoCubierto = new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: '#2563eb', width: 3, lineCap: 'round', lineJoin: 'round' })
+});
+var styleRioSurcoDescubierto = new ol.style.Style({
+    stroke: new ol.style.Stroke({ color: '#0891b2', width: 2.4, lineDash: [8, 5], lineCap: 'round', lineJoin: 'round' })
+});
 
 function normalizarTextoFiltro(valor) {
     return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
+var cacheControlesFiltro = Object.create(null);
 function filtroActivo(id) {
-    var input = document.getElementById(id);
+    var input = cacheControlesFiltro[id];
+    if (input === undefined) input = cacheControlesFiltro[id] = document.getElementById(id) || null;
     return !input || input.checked;
 }
 
@@ -390,10 +417,7 @@ var styleAtuFn = function (feature) {
     var config = ATU_STYLE_CONFIG[tipo];
     if (!config || !filtroActivo(config.parent) || !filtroActivo(config.id)) return null;
 
-    return new ol.style.Style({
-        stroke: new ol.style.Stroke({ color: 'rgba(15, 23, 42, 0.45)', width: 0.8 }),
-        fill: new ol.style.Fill({ color: 'rgba(' + config.color + ', 0.32)' })
-    });
+    return config.style;
 };
 
 function crearEstiloEtiqueta(texto, opciones) {
@@ -452,15 +476,29 @@ var styleSubsectoresFn = function (feature, resolution) {
     return styles;
 };
 
+var cacheClasificacionVial = new WeakMap();
 var styleRedVialFn = function (feature, resolution) {
     if (!filtroActivo('chk-movilidad-general')) return null;
-    var competencia = normalizarTextoFiltro(feature.get('COMPETENCI'));
-    var clasif = normalizarTextoFiltro(feature.get('CLASIFIC') || feature.get('CLASIFICA') || feature.get('NIVEL'));
-    var subclasif = normalizarTextoFiltro(feature.get('SUBCLASIFI'));
-    var categoria = normalizarTextoFiltro(feature.get('CATEGORÍA') || feature.get('CATEGORIA'));
-    var esMetropolitana = competencia.includes('metropolitana') || clasif.includes('metropolitana');
-    var esPrincipal = clasif.includes('principal') || clasif.includes('preferencial') || clasif.includes('arterial');
-    var esSecundaria = clasif.includes('secundaria');
+    var clasificacion = cacheClasificacionVial.get(feature);
+    if (!clasificacion) {
+        var competencia = normalizarTextoFiltro(feature.get('COMPETENCI'));
+        var clasif = normalizarTextoFiltro(feature.get('CLASIFIC') || feature.get('CLASIFICA') || feature.get('NIVEL'));
+        clasificacion = {
+            clasif: clasif,
+            subclasif: normalizarTextoFiltro(feature.get('SUBCLASIFI')),
+            categoria: normalizarTextoFiltro(feature.get('CATEGORÍA') || feature.get('CATEGORIA')),
+            esMetropolitana: competencia.includes('metropolitana') || clasif.includes('metropolitana'),
+            esPrincipal: clasif.includes('principal') || clasif.includes('preferencial') || clasif.includes('arterial'),
+            esSecundaria: clasif.includes('secundaria')
+        };
+        cacheClasificacionVial.set(feature, clasificacion);
+    }
+    var clasif = clasificacion.clasif;
+    var subclasif = clasificacion.subclasif;
+    var categoria = clasificacion.categoria;
+    var esMetropolitana = clasificacion.esMetropolitana;
+    var esPrincipal = clasificacion.esPrincipal;
+    var esSecundaria = clasificacion.esSecundaria;
 
     if (esMetropolitana) {
         if (!filtroActivo('chk-vial-met')) return null;
@@ -504,7 +542,7 @@ var styleRedVialFn = function (feature, resolution) {
 
 var styleHighlight = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#3b82f6', width: 5 }), fill: new ol.style.Fill({ color: 'rgba(59, 130, 246, 0.3)' }) });
 var ARBOLES_ZOOM_VISIBLE = 17;
-var styleArbolCache = new WeakMap();
+var styleArbolCache = new Map();
 var styleArbolCopa = function () {
     return null;
 };
@@ -513,19 +551,14 @@ var styleArbolPunto = function (feature, resolution) {
     if (zoom < ARBOLES_ZOOM_VISIBLE) return null;
     var seleccionado = feature.get('__treeSelected');
     var bucket = Math.round(zoom * 2) / 2;
-    var cache = styleArbolCache.get(feature);
-    if (!cache) {
-        cache = Object.create(null);
-        styleArbolCache.set(feature, cache);
-    }
-    var cacheKey = (seleccionado ? '1' : '0') + ':' + bucket;
-    if (cache[cacheKey]) return cache[cacheKey];
-
     var metricas = feature.get('__metricasArbol') || metricasArbolPark3D(feature.getProperties());
     var radioMetros = Math.max(.9, (metricas.ew + metricas.ns) / 4);
-    var radioPx = Math.max(3.5, Math.min(24, radioMetros / resolution));
+    // Compartir símbolos evita generar miles de canvas, uno por árbol y por zoom.
+    var radioPx = Math.round(Math.max(3.5, Math.min(24, radioMetros / resolution)) * 2) / 2;
     var puntoPx = bucket >= 18.5 ? 3 : 2;
-    cache[cacheKey] = [
+    var cacheKey = (seleccionado ? '1' : '0') + ':' + radioPx + ':' + puntoPx;
+    if (styleArbolCache.has(cacheKey)) return styleArbolCache.get(cacheKey);
+    var estilos = [
         new ol.style.Style({
             image: new ol.style.Circle({
                 radius: seleccionado ? radioPx + 2 : radioPx,
@@ -546,7 +579,8 @@ var styleArbolPunto = function (feature, resolution) {
             })
         })
     ];
-    return cache[cacheKey];
+    styleArbolCache.set(cacheKey, estilos);
+    return estilos;
 };
 
 var satSource = new ol.source.XYZ({ url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', maxZoom: 22 });
@@ -696,47 +730,97 @@ function programarCargaManzanasBase() {
 
 aplicarManzanasBase();
 
-var vectorManzanas = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresManzanasGenerales }), style: styleManzanas, zIndex: 10 });
-var vectorManzanasTorresSanBorja = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresManzanasTorresSanBorja }), style: styleManzanasTorresSanBorja, zIndex: 10.7 });
-var vectorAreasLibresJuan = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresJuanAreasLibres }), style: styleAreasLibresJuan, zIndex: 12.9 });
-var vectorManzanasJuan = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresManzanasJuan }), style: styleManzanasJuan, zIndex: 13 });
-var vectorManzanasLimatambo = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Manzanas_Limatambo_2 !== 'undefined' ? crearFeatures(json_Manzanas_Limatambo_2, 'manzana') : [] }), style: styleManzanasLimatambo, zIndex: 10 });
-var vectorMovilidadLimatambo = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Espaciospblicodestalamovilidad_TL_0 !== 'undefined' ? crearFeatures(json_Espaciospblicodestalamovilidad_TL_0, 'movilidad-lt') : [] }), style: styleMovilidadLimatambo, zIndex: 10.5 });
-var vectorEpiLimatambo = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_EPI_LT_0 !== 'undefined' ? crearFeatures(json_EPI_LT_0, 'epi') : [] }), style: styleEpiLimatambo, zIndex: 11 });
-var vectorEpiTorres = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresEpiTorres }), style: styleEpiTorres, zIndex: 11 });
-var vectorPistaTorresSanBorja = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresPistaTorres }), style: stylePistaTorresSanBorja, zIndex: 10.6 });
-var vectorServidumbres = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Servidumbredepaso_EPI_LT_3 !== 'undefined' ? crearFeatures(json_Servidumbredepaso_EPI_LT_3, 'servidumbre') : [] }), style: styleServidumbre, zIndex: 11 });
-var vectorAtu = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_TU_detallado_0 !== 'undefined' ? crearFeatures(json_TU_detallado_0, 'atu') : [] }), style: styleAtuFn, zIndex: 7 });
-var vectorLimiteDistrital = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_limite_distrital_0 !== 'undefined' ? crearFeatures(json_limite_distrital_0, 'limite-distrital') : [] }), style: styleLimiteDistrital, zIndex: 16 });
-var vectorSectores = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Sectores_2 !== 'undefined' ? crearFeatures(json_Sectores_2, 'sector') : [] }), style: styleSectoresFn, declutter: true, zIndex: 8 });
-var vectorSubsectores = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_subsectores_1 !== 'undefined' ? crearFeatures(json_subsectores_1, 'subsector') : [] }), style: styleSubsectoresFn, declutter: true, zIndex: 9 });
-var vectorUrbJuan = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresUrbJuan }), style: styleUrbJuan, zIndex: 12.5 });
-var vectorJuanAlamedas = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_ALAMEDASDESUBMANZANAS_2 !== 'undefined' ? crearFeatures(json_ALAMEDASDESUBMANZANAS_2, 'juan-alameda') : [] }), style: styleJuanAlamedas, zIndex: 12.8 });
-var vectorJuanPasajesCalles = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresJuanPasajesCalles }), style: styleJuanPasajesCalles, zIndex: 13.2 });
-var vectorSurcoUsoRestringido = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Zonadeusosrestringidos_1 !== 'undefined' ? crearFeatures(json_Zonadeusosrestringidos_1, 'surco-uso-restringido') : [] }), style: styleSurcoUsoRestringido, zIndex: 9 });
-var vectorSurcoFajaMarginal = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Fajamarginal_0 !== 'undefined' ? crearFeatures(json_Fajamarginal_0, 'surco-faja') : [] }), style: styleSurcoFajaMarginal, zIndex: 9 });
-var vectorSurcoZonaReglamentada = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Zonareglamentada_2 !== 'undefined' ? crearFeatures(json_Zonareglamentada_2, 'surco-zona-reglamentada') : [] }), style: styleSurcoZonaReglamentada, zIndex: 10 });
-var vectorRioSurco = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_LneaderoSurco_3 !== 'undefined' ? crearFeatures(json_LneaderoSurco_3, 'rio-surco') : [] }), style: styleRioSurcoFn, zIndex: 15 });
+// Las geometrías se rasterizan al reposar; durante el gesto se reutiliza la imagen.
+// Las etiquetas conservan su renderizado vectorial para mantenerse legibles al rotar.
+var capasEtiquetasMapa = [];
+function crearCapaVectorCacheada(opciones) {
+    var capa = new ol.layer.VectorImage(Object.assign({ imageRatio: 1.5, renderBuffer: 48 }, opciones));
+    var listenerSource = null;
+    function enlazarExtent() {
+        if (listenerSource) ol.Observable.unByKey(listenerSource);
+        var source = capa.getSource();
+        function actualizarExtent() {
+            var extent = source && source.getExtent();
+            capa.setExtent(extent && extent.every(Number.isFinite) ? ol.extent.buffer(extent, 100) : [0, 0, 0, 0]);
+        }
+        if (source) listenerSource = source.on('change', actualizarExtent);
+        actualizarExtent();
+    }
+    capa.on('change:source', enlazarExtent);
+    enlazarExtent();
+    return capa;
+}
+
+function crearCapaConEtiquetas(opciones) {
+    var estiloOriginal = opciones.style;
+    function separarEstilos(feature, resolution, etiquetas) {
+        var estilos = estiloOriginal(feature, resolution);
+        if (!estilos) return null;
+        return estilos.filter(function (estilo) { return !!estilo.getText() === etiquetas; });
+    }
+    var capa = crearCapaVectorCacheada(Object.assign({}, opciones, {
+        declutter: false,
+        style: function (feature, resolution) { return separarEstilos(feature, resolution, false); }
+    }));
+    var etiquetas = new ol.layer.Vector({
+        source: opciones.source,
+        style: function (feature, resolution) { return separarEstilos(feature, resolution, true); },
+        declutter: true,
+        zIndex: opciones.zIndex + 0.01,
+        renderBuffer: 100,
+        updateWhileAnimating: false,
+        updateWhileInteracting: false
+    });
+    capa.on('change', function () {
+        etiquetas.setVisible(capa.getVisible());
+        etiquetas.changed();
+    });
+    capasEtiquetasMapa.push(etiquetas);
+    return capa;
+}
+
+var vectorManzanas = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresManzanasGenerales }), style: styleManzanas, zIndex: 10 });
+var vectorManzanasTorresSanBorja = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresManzanasTorresSanBorja }), style: styleManzanasTorresSanBorja, zIndex: 10.7 });
+var vectorAreasLibresJuan = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresJuanAreasLibres }), style: styleAreasLibresJuan, zIndex: 12.9 });
+var vectorManzanasJuan = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresManzanasJuan }), style: styleManzanasJuan, zIndex: 13 });
+var vectorManzanasLimatambo = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Manzanas_Limatambo_2 !== 'undefined' ? crearFeatures(json_Manzanas_Limatambo_2, 'manzana') : [] }), style: styleManzanasLimatambo, zIndex: 10 });
+var vectorMovilidadLimatambo = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Espaciospblicodestalamovilidad_TL_0 !== 'undefined' ? crearFeatures(json_Espaciospblicodestalamovilidad_TL_0, 'movilidad-lt') : [] }), style: styleMovilidadLimatambo, zIndex: 10.5 });
+var vectorEpiLimatambo = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_EPI_LT_0 !== 'undefined' ? crearFeatures(json_EPI_LT_0, 'epi') : [] }), style: styleEpiLimatambo, zIndex: 11 });
+var vectorEpiTorres = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresEpiTorres }), style: styleEpiTorres, zIndex: 11 });
+var vectorPistaTorresSanBorja = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresPistaTorres }), style: stylePistaTorresSanBorja, zIndex: 10.6 });
+var vectorServidumbres = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Servidumbredepaso_EPI_LT_3 !== 'undefined' ? crearFeatures(json_Servidumbredepaso_EPI_LT_3, 'servidumbre') : [] }), style: styleServidumbre, zIndex: 11 });
+var vectorAtu = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_TU_detallado_0 !== 'undefined' ? crearFeatures(json_TU_detallado_0, 'atu') : [] }), style: styleAtuFn, zIndex: 7 });
+var vectorLimiteDistrital = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_limite_distrital_0 !== 'undefined' ? crearFeatures(json_limite_distrital_0, 'limite-distrital') : [] }), style: styleLimiteDistrital, zIndex: 16 });
+var vectorSectores = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_Sectores_2 !== 'undefined' ? crearFeatures(json_Sectores_2, 'sector') : [] }), style: styleSectoresFn, declutter: true, zIndex: 8 });
+var vectorSubsectores = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_subsectores_1 !== 'undefined' ? crearFeatures(json_subsectores_1, 'subsector') : [] }), style: styleSubsectoresFn, declutter: true, zIndex: 9 });
+var vectorUrbJuan = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresUrbJuan }), style: styleUrbJuan, zIndex: 12.5 });
+var vectorJuanAlamedas = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_ALAMEDASDESUBMANZANAS_2 !== 'undefined' ? crearFeatures(json_ALAMEDASDESUBMANZANAS_2, 'juan-alameda') : [] }), style: styleJuanAlamedas, zIndex: 12.8 });
+var vectorJuanPasajesCalles = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresJuanPasajesCalles }), style: styleJuanPasajesCalles, zIndex: 13.2 });
+var vectorSurcoUsoRestringido = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Zonadeusosrestringidos_1 !== 'undefined' ? crearFeatures(json_Zonadeusosrestringidos_1, 'surco-uso-restringido') : [] }), style: styleSurcoUsoRestringido, zIndex: 9 });
+var vectorSurcoFajaMarginal = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Fajamarginal_0 !== 'undefined' ? crearFeatures(json_Fajamarginal_0, 'surco-faja') : [] }), style: styleSurcoFajaMarginal, zIndex: 9 });
+var vectorSurcoZonaReglamentada = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Zonareglamentada_2 !== 'undefined' ? crearFeatures(json_Zonareglamentada_2, 'surco-zona-reglamentada') : [] }), style: styleSurcoZonaReglamentada, zIndex: 10 });
+var vectorRioSurco = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_LneaderoSurco_3 !== 'undefined' ? crearFeatures(json_LneaderoSurco_3, 'rio-surco') : [] }), style: styleRioSurcoFn, zIndex: 15 });
 var featuresHuacaSanBorja = typeof json_Bienes_culturales_Inmuebles_0 !== 'undefined'
     ? crearFeatures(json_Bienes_culturales_Inmuebles_0, 'bien-cultural-huaca').filter(function (feature) {
         return Boolean(String(feature.get('NOMBRE') || '').trim());
     })
     : [];
-var vectorHuacaSanBorja = new ol.layer.Vector({ source: new ol.source.Vector({ features: featuresHuacaSanBorja }), style: styleHuacaSanBorja, zIndex: 11 });
-var vectorJardinesAislamiento = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_Jardndeaislamiento_1 !== 'undefined' ? crearFeatures(json_Jardndeaislamiento_1, 'jardin-aislamiento') : [] }), style: styleJardinesAislamiento, zIndex: 12 });
-var vectorParques = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 12 });
-var vectorRedVial = new ol.layer.Vector({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? actualizarDatosViales(crearFeatures(json_red_vial_4, 'via')) : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
+var vectorHuacaSanBorja = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresHuacaSanBorja }), style: styleHuacaSanBorja, zIndex: 11 });
+var vectorJardinesAislamiento = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Jardndeaislamiento_1 !== 'undefined' ? crearFeatures(json_Jardndeaislamiento_1, 'jardin-aislamiento') : [] }), style: styleJardinesAislamiento, zIndex: 12 });
+var vectorParques = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 12 });
+var vectorRedVial = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? actualizarDatosViales(crearFeatures(json_red_vial_4, 'via')) : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
 var sourceArbolesCopa = new ol.source.Vector();
 var sourceArbolesPunto = new ol.source.Vector();
-var vectorArbolesCopa = new ol.layer.Vector({ source: sourceArbolesCopa, style: styleArbolCopa, minZoom: ARBOLES_ZOOM_VISIBLE, zIndex: 17 });
-var vectorArbolesPunto = new ol.layer.Vector({ source: sourceArbolesPunto, style: styleArbolPunto, minZoom: ARBOLES_ZOOM_VISIBLE, renderBuffer: 48, updateWhileInteracting: false, updateWhileAnimating: false, zIndex: 18 });
+var vectorArbolesCopa = crearCapaVectorCacheada({ source: sourceArbolesCopa, style: styleArbolCopa, minZoom: ARBOLES_ZOOM_VISIBLE, zIndex: 17 });
+var vectorArbolesPunto = crearCapaVectorCacheada({ source: sourceArbolesPunto, style: styleArbolPunto, minZoom: ARBOLES_ZOOM_VISIBLE, renderBuffer: 48, updateWhileInteracting: false, updateWhileAnimating: false, zIndex: 18 });
 
 var sourceHighlight = new ol.source.Vector();
 var layerHighlight = new ol.layer.Vector({ source: sourceHighlight, style: styleHighlight, zIndex: 20 });
 
 var map = new ol.Map({
-    target: 'map', renderer: ['webgl', 'canvas'],
-    layers: [googleSat, vectorAtu, vectorSectores, vectorSubsectores, vectorSurcoUsoRestringido, vectorSurcoFajaMarginal, vectorSurcoZonaReglamentada, vectorHuacaSanBorja, vectorManzanas, vectorManzanasLimatambo, vectorMovilidadLimatambo, vectorPistaTorresSanBorja, vectorManzanasTorresSanBorja, vectorEpiLimatambo, vectorEpiTorres, vectorServidumbres, vectorUrbJuan, vectorJuanAlamedas, vectorAreasLibresJuan, vectorManzanasJuan, vectorJuanPasajesCalles, vectorParques, vectorJardinesAislamiento, vectorRedVial, vectorRioSurco, vectorLimiteDistrital, vectorArbolesCopa, vectorArbolesPunto, layerHighlight],
+    target: 'map',
+    pixelRatio: Math.min(window.devicePixelRatio || 1, window.matchMedia('(pointer: coarse)').matches ? 1.5 : 2),
+    layers: [googleSat, vectorAtu, vectorSectores, vectorSubsectores, vectorSurcoUsoRestringido, vectorSurcoFajaMarginal, vectorSurcoZonaReglamentada, vectorHuacaSanBorja, vectorManzanas, vectorManzanasLimatambo, vectorMovilidadLimatambo, vectorPistaTorresSanBorja, vectorManzanasTorresSanBorja, vectorEpiLimatambo, vectorEpiTorres, vectorServidumbres, vectorUrbJuan, vectorJuanAlamedas, vectorAreasLibresJuan, vectorManzanasJuan, vectorJuanPasajesCalles, vectorParques, vectorJardinesAislamiento, vectorRedVial, vectorRioSurco, vectorLimiteDistrital, vectorArbolesCopa, vectorArbolesPunto, layerHighlight].concat(capasEtiquetasMapa),
     view: new ol.View({ center: ol.proj.fromLonLat([-76.9933, -12.0951]), zoom: 14, minZoom: 13, maxZoom: 22 }),
     controls: [new ol.control.Zoom(), new ol.control.ScaleLine({ units: 'metric' })]
 });
@@ -825,51 +909,98 @@ function crearFeatureArbolMapa(tree, index) {
 }
 
 function poblarArbolesMapa() {
-    if (arbolesMapaCargados || typeof json_rboles_parque_0 === 'undefined') return;
-    var puntos = [];
-    (json_rboles_parque_0.features || []).forEach(function (tree, index) {
-        if (!tree.geometry || tree.geometry.type !== 'Point') return;
-        var features = crearFeatureArbolMapa(tree, index);
-        if (!features) return;
-        puntos.push(features.punto);
+    if (arbolesMapaCargados) return Promise.resolve();
+    var arboles = json_rboles_parque_0.features || [];
+    var indice = 0;
+    // Construir el índice fuera de la capa visible evita repintarla en cada lote.
+    var sourceCarga = new ol.source.Vector();
+    return new Promise(function (resolve, reject) {
+        function programarLote() {
+            if (window.requestIdleCallback) window.requestIdleCallback(poblarLote, { timeout: 250 });
+            else window.setTimeout(poblarLote, 16);
+        }
+        function poblarLote() {
+            var view = map.getView();
+            if (view.getInteracting() || view.getAnimating()) {
+                window.setTimeout(programarLote, 100);
+                return;
+            }
+            try {
+                var puntos = [];
+                var inicio = performance.now();
+                do {
+                    var tree = arboles[indice];
+                    if (tree && tree.geometry && tree.geometry.type === 'Point') {
+                        var features = crearFeatureArbolMapa(tree, indice);
+                        if (features) {
+                            features.punto.setId(indice);
+                            puntos.push(features.punto);
+                        }
+                    }
+                    indice++;
+                } while (indice < arboles.length && puntos.length < 200 && performance.now() - inicio < 4);
+                if (puntos.length) sourceCarga.addFeatures(puntos);
+                if (indice >= arboles.length) {
+                    sourceArbolesPunto = sourceCarga;
+                    vectorArbolesPunto.setSource(sourceArbolesPunto);
+                    arbolesMapaCargados = true;
+                    resolve();
+                } else programarLote();
+            } catch (error) { reject(error); }
+        }
+        programarLote();
     });
-    sourceArbolesPunto.addFeatures(puntos);
-    arbolesMapaCargados = true;
+}
+
+var inventarioArbolesPromise = null;
+function asegurarInventarioArboles() {
+    if (typeof json_rboles_parque_0 !== 'undefined') return Promise.resolve();
+    if (!inventarioArbolesPromise) {
+        inventarioArbolesPromise = cargarScriptPark3D('data/rboles_parque_0.js', function () {
+            return typeof json_rboles_parque_0 !== 'undefined';
+        }).catch(function (error) {
+            inventarioArbolesPromise = null;
+            throw error;
+        });
+    }
+    return inventarioArbolesPromise;
 }
 
 function asegurarArbolesMapa() {
     if (arbolesMapaCargados) return Promise.resolve();
-    if (typeof json_rboles_parque_0 !== 'undefined') {
-        poblarArbolesMapa();
-        return Promise.resolve();
-    }
     if (!arbolesMapaPromise) {
-        arbolesMapaPromise = cargarScriptPark3D('data/rboles_parque_0.js', function () {
-            return typeof json_rboles_parque_0 !== 'undefined';
-        }).then(function () {
-            poblarArbolesMapa();
-        }).catch(function (error) {
-            console.error('No se pudo cargar el inventario de árboles', error);
+        arbolesMapaPromise = asegurarInventarioArboles().then(poblarArbolesMapa).catch(function (error) {
+            arbolesMapaPromise = null;
+            throw error;
         });
     }
     return arbolesMapaPromise;
 }
 
+var timerCargaArbolesZoom = null;
 function revisarCargaArbolesPorZoom() {
-    if (filtroActivo('chk-recreacion-general') && filtroActivo('chk-parques') && filtroActivo('chk-arboles') && map.getView().getZoom() >= ARBOLES_ZOOM_VISIBLE - .2) asegurarArbolesMapa();
+    if (timerCargaArbolesZoom) window.clearTimeout(timerCargaArbolesZoom);
+    if (!filtroActivo('chk-recreacion-general') || !filtroActivo('chk-parques') || !filtroActivo('chk-arboles') || map.getView().getZoom() < ARBOLES_ZOOM_VISIBLE - .2) return;
+    timerCargaArbolesZoom = window.setTimeout(function () {
+        timerCargaArbolesZoom = null;
+        if (map.getView().getZoom() >= ARBOLES_ZOOM_VISIBLE - .2 && filtroActivo('chk-recreacion-general') && filtroActivo('chk-parques') && filtroActivo('chk-arboles')) {
+            if (map.getView().getInteracting() || map.getView().getAnimating()) return;
+            asegurarArbolesMapa().catch(function (error) { console.warn('No se pudo cargar el inventario de árboles', error); });
+        }
+    }, 650);
 }
 
-map.getView().on('change:resolution', revisarCargaArbolesPorZoom);
+map.on('moveend', revisarCargaArbolesPorZoom);
 revisarCargaArbolesPorZoom();
 
 function marcarArbolSeleccionado(id) {
     [sourceArbolesCopa, sourceArbolesPunto].forEach(function (source) {
         if (arbolSeleccionadoId !== null) {
-            var anterior = source.getFeatures().find(function (feature) { return feature.get('__treeId') === arbolSeleccionadoId; });
+            var anterior = source.getFeatureById(arbolSeleccionadoId);
             if (anterior) anterior.set('__treeSelected', false);
         }
         if (id !== null) {
-            var actual = source.getFeatures().find(function (feature) { return feature.get('__treeId') === id; });
+            var actual = source.getFeatureById(id);
             if (actual) actual.set('__treeSelected', true);
         }
     });
@@ -1385,7 +1516,7 @@ function construirStreetView(coord) {
     var lng = lonLat[0];
     // Ciberseguridad: Añadido referrerpolicy="no-referrer"
     return `<div class="sv-container">
-                <iframe class="street-view-frame" title="Vista de calle" src="https://maps.google.com/maps?q=${lat},${lng}&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed" allowfullscreen referrerpolicy="no-referrer"></iframe>
+                <iframe class="street-view-frame" title="Vista de calle" data-src="https://maps.google.com/maps?q=${lat},${lng}&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed" loading="lazy" allowfullscreen referrerpolicy="no-referrer"></iframe>
             </div>`;
 }
 
@@ -1447,7 +1578,7 @@ function cargarScriptPark3D(src, testFn) {
         script.async = true;
         script.dataset.park3dSrc = src;
         script.onload = resolve;
-        script.onerror = reject;
+        script.onerror = function (error) { script.remove(); reject(error); };
         document.head.appendChild(script);
     });
 }
@@ -1983,7 +2114,8 @@ async function abrirParque3D(feature) {
     }
 
     try {
-        await asegurarArbolesMapa();
+        await asegurarInventarioArboles();
+        if (parque3DSeleccionado !== targetFeature || modal.classList.contains('hidden')) return;
         renderFichaInformativaPark3D(targetFeature, arbolesParaParque3D(targetFeature).length.toLocaleString('es-PE'));
     } catch (error) {
         console.error(error);
@@ -2130,7 +2262,21 @@ function mostrarFicha(feature, coordinate) {
     }
 
     content.innerHTML = finalHtml;
+    window.clearTimeout(fichaStreetTimer);
+    // El mapa externo empieza a cargar una vez terminada la entrada de la ficha.
+    fichaStreetTimer = window.setTimeout(function () {
+        if (ficha.getAttribute('aria-hidden') === 'true') return;
+        content.querySelectorAll('iframe[data-src]').forEach(function (frame) { frame.src = frame.dataset.src; });
+    }, window.innerWidth <= 896 ? 340 : 50);
+    if (fichaCloseTimer) window.clearTimeout(fichaCloseTimer);
     ficha.style.display = 'flex';
+    ficha.setAttribute('aria-hidden', 'false');
+    ficha.inert = false;
+    if (window.innerWidth <= 896) {
+        window.requestAnimationFrame(function () {
+            if (ficha.style.display === 'flex') document.body.classList.add('ficha-open');
+        });
+    }
     if (window.innerWidth <= 896) cambiarEstadoLeyenda(false);
     resaltarLeyendaParaFeature(feature);
 }
@@ -2159,19 +2305,33 @@ function areaFeatureParaPrioridad(feature) {
     return geometry.getArea();
 }
 
-function featureInteractivaEnPixel(pixel, hitTolerance) {
+var capasSinSeleccionInteractiva = new Set([
+    layerHighlight, vectorManzanas, vectorManzanasTorresSanBorja, vectorAreasLibresJuan,
+    vectorManzanasJuan, vectorManzanasLimatambo, vectorMovilidadLimatambo,
+    vectorPistaTorresSanBorja,
+    vectorJuanPasajesCalles, vectorLimiteDistrital, vectorSectores, vectorSubsectores
+]);
+
+function featureInteractivaEnPixel(pixel, hitTolerance, soloDetectar) {
     var candidatos = [];
 
-    map.forEachFeatureAtPixel(pixel, function (feature, layer) {
+    var featureHit = map.forEachFeatureAtPixel(pixel, function (feature, layer) {
         var tipo = feature && feature.get('__tipo');
         if (!feature || layer === layerHighlight || tipo === 'manzana' || tipo === 'manzana-juan' || tipo === 'area-libre-juan' || tipo === 'manzana-tsb' || tipo === 'juan-pasaje-calle' || tipo === 'movilidad-lt' || tipo === 'pista-tsb' || tipo === 'limite-distrital' || tipo === 'sector' || tipo === 'subsector') return;
+
+        if (soloDetectar) return feature;
 
         candidatos.push({
             feature: feature,
             prioridad: PRIORIDAD_CLICK_FEATURE[tipo] || 70,
             area: areaFeatureParaPrioridad(feature)
         });
-    }, { hitTolerance: hitTolerance });
+    }, {
+        hitTolerance: hitTolerance,
+        layerFilter: function (layer) { return !capasSinSeleccionInteractiva.has(layer); }
+    });
+
+    if (soloDetectar) return featureHit || null;
 
     if (!candidatos.length) return null;
 
@@ -2198,17 +2358,24 @@ map.on('singleclick', function (evt) {
 });
 
 var pointerMovePendiente = null;
-var pointerMoveRAF = null;
+var pointerMoveTimer = null;
 map.on('pointermove', function (evt) {
-    if (evt.dragging) return;
+    if (!evt.originalEvent || evt.originalEvent.pointerType !== 'mouse') return;
+    if (evt.dragging || map.getView().getAnimating() || document.body.classList.contains('streetview-targeting')) {
+        window.clearTimeout(pointerMoveTimer);
+        pointerMoveTimer = null;
+        pointerMovePendiente = null;
+        map.getViewport().classList.remove('is-hovering');
+        return;
+    }
     pointerMovePendiente = evt.pixel;
-    if (pointerMoveRAF) return;
-    pointerMoveRAF = requestAnimationFrame(function () {
-        pointerMoveRAF = null;
-        if (!pointerMovePendiente) return;
-        var hit = featureInteractivaEnPixel(pointerMovePendiente, 4);
+    if (pointerMoveTimer) return;
+    pointerMoveTimer = window.setTimeout(function () {
+        pointerMoveTimer = null;
+        if (!pointerMovePendiente || map.getView().getInteracting() || map.getView().getAnimating()) return;
+        var hit = featureInteractivaEnPixel(pointerMovePendiente, 4, true);
         map.getViewport().classList.toggle('is-hovering', !!hit);
-    });
+    }, 60);
 });
 
 // ==========================================
@@ -2298,9 +2465,10 @@ inputBuscador.addEventListener('input', function () {
                 var pLeft = window.innerWidth <= 896 ? 20 : 365;
                 var pBottom = window.innerWidth <= 896 ? Math.round(window.innerHeight * 0.48) : 90;
                 var pRight = window.innerWidth <= 896 ? 20 : Math.min(350, window.innerWidth * 0.42) + 60;
-                map.getView().fit(ext, { padding: [window.innerWidth <= 896 ? 95 : 85, pRight, pBottom, pLeft], maxZoom: 18, duration: 800 });
-
-                setTimeout(function () { mostrarFicha(v.feature, center); }, 850);
+                map.getView().cancelAnimations();
+                map.getView().fit(ext, { padding: [window.innerWidth <= 896 ? 95 : 85, pRight, pBottom, pLeft], maxZoom: 18, duration: 320, callback: function (completo) {
+                    if (completo) mostrarFicha(v.feature, center);
+                } });
             };
             resDiv.appendChild(item);
         });

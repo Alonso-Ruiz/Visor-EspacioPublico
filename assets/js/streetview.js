@@ -6,6 +6,9 @@
     var dragging = false;
     var startPoint = null;
     var wasTargetingBeforeDrag = false;
+    var highlightedRoad = null;
+    var pendingPixel = null;
+    var highlightFrame = null;
 
     if (!button || !ghost || !mapElement || typeof map === 'undefined' || typeof ol === 'undefined') return;
 
@@ -18,8 +21,7 @@
     }
 
     function updateGhost(clientX, clientY) {
-        ghost.style.left = clientX + 'px';
-        ghost.style.top = clientY + 'px';
+        ghost.style.transform = 'translate3d(' + (clientX - 13) + 'px,' + (clientY - 12) + 'px,0)';
         ghost.classList.add('is-visible');
     }
 
@@ -28,18 +30,29 @@
     }
 
     function clearStreetViewHighlight() {
+        if (highlightFrame) cancelAnimationFrame(highlightFrame);
+        highlightFrame = null;
+        pendingPixel = null;
+        highlightedRoad = null;
         if (typeof sourceHighlight !== 'undefined') sourceHighlight.clear();
     }
 
     function highlightRoadAtPixel(pixel) {
         if (!pixel || typeof sourceHighlight === 'undefined' || typeof vectorRedVial === 'undefined') return;
-
-        var road = map.forEachFeatureAtPixel(pixel, function(feature, layer) {
-            return layer === vectorRedVial ? feature : null;
-        }, { hitTolerance: 12 });
-
-        sourceHighlight.clear();
-        if (road) sourceHighlight.addFeature(road);
+        pendingPixel = pixel;
+        if (highlightFrame) return;
+        highlightFrame = requestAnimationFrame(function () {
+            highlightFrame = null;
+            if (!targeting || !pendingPixel) return;
+            var road = map.forEachFeatureAtPixel(pendingPixel, function(feature) { return feature; }, {
+                hitTolerance: 12,
+                layerFilter: function (layer) { return layer === vectorRedVial; }
+            }) || null;
+            if (road === highlightedRoad) return;
+            highlightedRoad = road;
+            sourceHighlight.clear();
+            if (road) sourceHighlight.addFeature(road);
+        });
     }
 
     function highlightRoadAtClient(clientX, clientY) {
@@ -134,7 +147,7 @@
     });
 
     map.on('pointermove', function(event) {
-        if (!targeting || dragging) return;
+        if (!targeting || dragging || event.dragging || event.originalEvent.pointerType !== 'mouse') return;
         highlightRoadAtPixel(event.pixel);
     });
 
