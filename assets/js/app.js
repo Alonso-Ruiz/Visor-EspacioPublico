@@ -807,7 +807,7 @@ var featuresHuacaSanBorja = typeof json_Bienes_culturales_Inmuebles_0 !== 'undef
     : [];
 var vectorHuacaSanBorja = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresHuacaSanBorja }), style: styleHuacaSanBorja, zIndex: 11 });
 var vectorJardinesAislamiento = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Jardndeaislamiento_1 !== 'undefined' ? crearFeatures(json_Jardndeaislamiento_1, 'jardin-aislamiento') : [] }), style: styleJardinesAislamiento, zIndex: 12 });
-var vectorParques = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 12 });
+var vectorParques = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 16.5 });
 var vectorRedVial = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? actualizarDatosViales(crearFeatures(json_red_vial_4, 'via')) : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
 var sourceArbolesCopa = new ol.source.Vector();
 var sourceArbolesPunto = new ol.source.Vector();
@@ -1057,10 +1057,13 @@ function mostrarPopupArbol(feature, coordinate) {
     arbolPopupEl.classList.remove('hidden');
     overlayArbol.setPosition(coordinate);
     var close = arbolPopupEl.querySelector('.tree-popover-close');
-    if (close) close.onclick = function () {
+    if (close) close.onclick = function (event) {
+        event.preventDefault();
+        event.stopPropagation();
         arbolPopupEl.classList.add('hidden');
         overlayArbol.setPosition(undefined);
         marcarArbolSeleccionado(null);
+        map.getViewport().focus({ preventScroll: true });
     };
 }
 

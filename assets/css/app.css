@@ -1189,6 +1189,7 @@ body:not(.visor-entered) :is(#app-header, #left-panel, #map-utility-controls, #b
 
 .ol-tree-popover.hidden {
     display: none;
+    pointer-events: none;
 }
 
 .ol-tree-popover::after {
