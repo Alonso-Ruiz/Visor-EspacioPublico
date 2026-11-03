@@ -1177,6 +1177,16 @@ body:not(.visor-entered) :is(#app-header, #left-panel, #map-utility-controls, #b
     white-space: normal;
 }
 
+/* Canvas independiente: mostrar/ocultar ATU no repinta las demás capas. */
+.atu-layer {
+    will-change: opacity;
+}
+
+.atu-layer:not(.atu-visible) {
+    opacity: 0 !important;
+    pointer-events: none;
+}
+
 .ol-tree-popover {
     position: relative;
     width: 270px;

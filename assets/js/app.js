@@ -412,7 +412,6 @@ var styleParquesFn = function (feature, resolution) {
 };
 
 var styleAtuFn = function (feature) {
-    if (!filtroActivo('chk-atu')) return null;
     var tipo = String(feature.get('TRAT_URB2') || '').trim();
     var config = ATU_STYLE_CONFIG[tipo];
     if (!config || !filtroActivo(config.parent) || !filtroActivo(config.id)) return null;
@@ -766,7 +765,7 @@ function crearCapaConEtiquetas(opciones) {
         source: opciones.source,
         style: function (feature, resolution) { return separarEstilos(feature, resolution, true); },
         declutter: true,
-        zIndex: opciones.zIndex + 0.01,
+        zIndex: opciones.labelZIndex === undefined ? opciones.zIndex + 0.01 : opciones.labelZIndex,
         renderBuffer: 100,
         updateWhileAnimating: false,
         updateWhileInteracting: false
@@ -789,10 +788,22 @@ var vectorEpiLimatambo = crearCapaVectorCacheada({ source: new ol.source.Vector(
 var vectorEpiTorres = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresEpiTorres }), style: styleEpiTorres, zIndex: 11 });
 var vectorPistaTorresSanBorja = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresPistaTorres }), style: stylePistaTorresSanBorja, zIndex: 10.6 });
 var vectorServidumbres = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Servidumbredepaso_EPI_LT_3 !== 'undefined' ? crearFeatures(json_Servidumbredepaso_EPI_LT_3, 'servidumbre') : [] }), style: styleServidumbre, zIndex: 11 });
-var vectorAtu = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_TU_detallado_0 !== 'undefined' ? crearFeatures(json_TU_detallado_0, 'atu') : [] }), style: styleAtuFn, zIndex: 7 });
+// Preparar ATU desde el inicio y reutilizar su imagen durante los gestos.
+// El interruptor solo cambia la composición visual, nunca su visibilidad OL.
+var vectorAtu = new ol.layer.VectorImage({
+    className: 'ol-layer atu-layer',
+    imageRatio: 1.2,
+    source: new ol.source.Vector({ features: typeof json_TU_detallado_0 !== 'undefined' ? crearFeatures(json_TU_detallado_0, 'atu') : [] }),
+    style: styleAtuFn,
+    visible: true,
+    renderBuffer: 32,
+    updateWhileAnimating: false,
+    updateWhileInteracting: false,
+    zIndex: 7
+});
 var vectorLimiteDistrital = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_limite_distrital_0 !== 'undefined' ? crearFeatures(json_limite_distrital_0, 'limite-distrital') : [] }), style: styleLimiteDistrital, zIndex: 16 });
-var vectorSectores = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_Sectores_2 !== 'undefined' ? crearFeatures(json_Sectores_2, 'sector') : [] }), style: styleSectoresFn, declutter: true, zIndex: 8 });
-var vectorSubsectores = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_subsectores_1 !== 'undefined' ? crearFeatures(json_subsectores_1, 'subsector') : [] }), style: styleSubsectoresFn, declutter: true, zIndex: 9 });
+var vectorSectores = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_Sectores_2 !== 'undefined' ? crearFeatures(json_Sectores_2, 'sector') : [] }), style: styleSectoresFn, declutter: true, zIndex: 8, labelZIndex: 19.1 });
+var vectorSubsectores = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_subsectores_1 !== 'undefined' ? crearFeatures(json_subsectores_1, 'subsector') : [] }), style: styleSubsectoresFn, declutter: true, zIndex: 9, labelZIndex: 19.2 });
 var vectorUrbJuan = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresUrbJuan }), style: styleUrbJuan, zIndex: 12.5 });
 var vectorJuanAlamedas = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_ALAMEDASDESUBMANZANAS_2 !== 'undefined' ? crearFeatures(json_ALAMEDASDESUBMANZANAS_2, 'juan-alameda') : [] }), style: styleJuanAlamedas, zIndex: 12.8 });
 var vectorJuanPasajesCalles = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresJuanPasajesCalles }), style: styleJuanPasajesCalles, zIndex: 13.2 });
@@ -807,7 +818,7 @@ var featuresHuacaSanBorja = typeof json_Bienes_culturales_Inmuebles_0 !== 'undef
     : [];
 var vectorHuacaSanBorja = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresHuacaSanBorja }), style: styleHuacaSanBorja, zIndex: 11 });
 var vectorJardinesAislamiento = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Jardndeaislamiento_1 !== 'undefined' ? crearFeatures(json_Jardndeaislamiento_1, 'jardin-aislamiento') : [] }), style: styleJardinesAislamiento, zIndex: 12 });
-var vectorParques = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 16.5 });
+var vectorParques = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_ParquesOf_5 !== 'undefined' ? crearFeatures(json_ParquesOf_5, 'parque') : [] }), style: styleParquesFn, declutter: true, zIndex: 16.5, labelZIndex: 19.3 });
 var vectorRedVial = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? actualizarDatosViales(crearFeatures(json_red_vial_4, 'via')) : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
 var sourceArbolesCopa = new ol.source.Vector();
 var sourceArbolesPunto = new ol.source.Vector();
@@ -1126,7 +1137,7 @@ function actualizarEstadoCanalSurco() {
     vectorRioSurco.changed();
 }
 
-function actualizarEstadoAtu() {
+function actualizarEstadoAtu(event) {
     var atuActiva = filtroActivo('chk-atu');
     var grupos = {
         'chk-atu-conservacion': atuActiva,
@@ -1154,9 +1165,20 @@ function actualizarEstadoAtu() {
         if (input) input.disabled = !grupos[id];
     });
 
-    vectorAtu.setVisible(atuActiva);
-    vectorAtu.changed();
+    // Mantener el canvas preparado: alternar ATU no invalida el render del mapa.
+    actualizarVisibilidadCanvasAtu();
+    if (event && event.target && event.target.id !== 'chk-atu') vectorAtu.changed();
 }
+
+function actualizarVisibilidadCanvasAtu() {
+    var visible = filtroActivo('chk-atu');
+    map.getViewport().querySelectorAll('.atu-layer').forEach(function (elemento) {
+        elemento.classList.toggle('atu-visible', visible);
+    });
+}
+
+// El contenedor lo crea OpenLayers durante el primer render (o lo reemplaza).
+map.on('postrender', actualizarVisibilidadCanvasAtu);
 
 function actualizarEstadoJuan() {
     var juanActivo = filtroActivo('chk-urb-juan');
@@ -2331,7 +2353,10 @@ function featureInteractivaEnPixel(pixel, hitTolerance, soloDetectar) {
         });
     }, {
         hitTolerance: hitTolerance,
-        layerFilter: function (layer) { return !capasSinSeleccionInteractiva.has(layer); }
+        layerFilter: function (layer) {
+            return !capasSinSeleccionInteractiva.has(layer) &&
+                (layer !== vectorAtu || filtroActivo('chk-atu'));
+        }
     });
 
     if (soloDetectar) return featureHit || null;
@@ -2362,6 +2387,35 @@ map.on('singleclick', function (evt) {
 
 var pointerMovePendiente = null;
 var pointerMoveTimer = null;
+// El hover solo necesita saber si hay algo seleccionable. Consultar el índice
+// espacial evita reconstruir los canvas de detección de todas las capas.
+function hayFeatureCercaDelPixel(pixel) {
+    var coordinate = map.getCoordinateFromPixel(pixel);
+    var view = map.getView();
+    var resolution = view.getResolution();
+    var tolerance = resolution * 4;
+    var extent = ol.extent.buffer([coordinate[0], coordinate[1], coordinate[0], coordinate[1]], tolerance);
+    return map.getLayers().getArray().some(function (layer) {
+        if (!layer.getSource || !layer.getVisible() || capasSinSeleccionInteractiva.has(layer) ||
+            capasEtiquetasMapa.indexOf(layer) !== -1 ||
+            (layer === vectorAtu && !filtroActivo('chk-atu')) ||
+            view.getZoom() <= layer.getMinZoom() || view.getZoom() > layer.getMaxZoom()) return false;
+        var source = layer.getSource();
+        if (!source || !source.forEachFeatureInExtent) return false;
+        return !!source.forEachFeatureInExtent(extent, function (feature) {
+            var styleFn = feature.getStyleFunction() || layer.getStyleFunction();
+            var styles = styleFn && styleFn(feature, resolution);
+            if (!styles || (Array.isArray(styles) && !styles.length)) return;
+            var geometry = feature.getGeometry();
+            if (geometry.intersectsCoordinate(coordinate)) return true;
+            var closest = geometry.getClosestPoint(coordinate);
+            var dx = closest[0] - coordinate[0];
+            var dy = closest[1] - coordinate[1];
+            if (dx * dx + dy * dy <= tolerance * tolerance) return true;
+        });
+    });
+}
+
 map.on('pointermove', function (evt) {
     if (!evt.originalEvent || evt.originalEvent.pointerType !== 'mouse') return;
     if (evt.dragging || map.getView().getAnimating() || document.body.classList.contains('streetview-targeting')) {
@@ -2376,7 +2430,7 @@ map.on('pointermove', function (evt) {
     pointerMoveTimer = window.setTimeout(function () {
         pointerMoveTimer = null;
         if (!pointerMovePendiente || map.getView().getInteracting() || map.getView().getAnimating()) return;
-        var hit = featureInteractivaEnPixel(pointerMovePendiente, 4, true);
+        var hit = hayFeatureCercaDelPixel(pointerMovePendiente);
         map.getViewport().classList.toggle('is-hovering', !!hit);
     }, 60);
 });
