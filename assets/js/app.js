@@ -823,7 +823,7 @@ var vectorRedVial = crearCapaConEtiquetas({ source: new ol.source.Vector({ featu
 var sourceArbolesCopa = new ol.source.Vector();
 var sourceArbolesPunto = new ol.source.Vector();
 var vectorArbolesCopa = crearCapaVectorCacheada({ source: sourceArbolesCopa, style: styleArbolCopa, minZoom: ARBOLES_ZOOM_VISIBLE, zIndex: 17 });
-var vectorArbolesPunto = crearCapaVectorCacheada({ source: sourceArbolesPunto, style: styleArbolPunto, minZoom: ARBOLES_ZOOM_VISIBLE, renderBuffer: 48, updateWhileInteracting: false, updateWhileAnimating: false, zIndex: 18 });
+var vectorArbolesPunto = crearCapaVectorCacheada({ source: sourceArbolesPunto, style: styleArbolPunto, minZoom: ARBOLES_ZOOM_VISIBLE, imageRatio: 1.1, renderOrder: null, renderBuffer: 48, updateWhileInteracting: false, updateWhileAnimating: false, zIndex: 18 });
 
 var sourceHighlight = new ol.source.Vector();
 var layerHighlight = new ol.layer.Vector({ source: sourceHighlight, style: styleHighlight, zIndex: 20 });
@@ -908,14 +908,8 @@ function crearFeatureArbolMapa(tree, index) {
     if (!coords || coords.length < 2) return null;
     var metricas = metricasArbolPark3D(props);
     var propiedades = Object.assign({}, props, { __tipo: 'arbol', __treeId: index, __metricasArbol: metricas });
-    var punto = formatJSON.readFeature({
-        type: 'Feature',
-        properties: propiedades,
-        geometry: { type: 'Point', coordinates: coords }
-    }, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
-    punto.set('__tipo', 'arbol', true);
-    punto.set('__treeId', index, true);
-    punto.set('__metricasArbol', metricas, true);
+    var punto = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat(coords)));
+    punto.setProperties(propiedades, true);
     return { punto: punto };
 }
 
@@ -949,7 +943,7 @@ function poblarArbolesMapa() {
                         }
                     }
                     indice++;
-                } while (indice < arboles.length && puntos.length < 200 && performance.now() - inicio < 4);
+                } while (indice < arboles.length && puntos.length < 60 && performance.now() - inicio < 3);
                 if (puntos.length) sourceCarga.addFeatures(puntos);
                 if (indice >= arboles.length) {
                     sourceArbolesPunto = sourceCarga;
@@ -964,12 +958,40 @@ function poblarArbolesMapa() {
 }
 
 var inventarioArbolesPromise = null;
+function cargarInventarioEnWorker() {
+    return new Promise(function (resolve, reject) {
+        var worker = new Worker('assets/js/tree-loader.worker.js');
+        var features = [];
+        function fallar(error) {
+            worker.terminate();
+            reject(error);
+        }
+        worker.onerror = function (event) { fallar(new Error(event.message || 'Error del inventario')); };
+        worker.onmessage = function (event) {
+            var data = event.data;
+            if (data.error) { fallar(new Error(data.error)); return; }
+            features.push.apply(features, data.features);
+            if (data.done) {
+                window.json_rboles_parque_0 = { type: 'FeatureCollection', features: features };
+                worker.terminate();
+                resolve();
+            } else {
+                // Backpressure keeps deserialization from monopolizing the UI.
+                window.setTimeout(function () { worker.postMessage(null); }, 16);
+            }
+        };
+        worker.postMessage(null);
+    });
+}
 function asegurarInventarioArboles() {
     if (typeof json_rboles_parque_0 !== 'undefined') return Promise.resolve();
     if (!inventarioArbolesPromise) {
-        inventarioArbolesPromise = cargarScriptPark3D('data/rboles_parque_0.js', function () {
+        var cargarScript = function () { return cargarScriptPark3D('data/rboles_parque_0.js', function () {
             return typeof json_rboles_parque_0 !== 'undefined';
-        }).catch(function (error) {
+        }); };
+        inventarioArbolesPromise = (window.Worker && location.protocol !== 'file:'
+            ? cargarInventarioEnWorker().catch(cargarScript)
+            : cargarScript()).catch(function (error) {
             inventarioArbolesPromise = null;
             throw error;
         });
@@ -1421,7 +1443,7 @@ var PDF_FICHAS_PARQUES = [
     'Alameda_de_los_Héroes_2.pdf', 'Alameda_de_los_Héroes_3.pdf', 'Alfredo_Maúrtua.pdf',
     'Almirante_Grau.pdf', 'Andrés_Avelino_Cáceres.pdf', 'Antonia_Moreno_de_Cáceres.pdf',
     'Aramburu_y_Salinas.pdf', 'Arq._Fernando_Belaunde_Terry.pdf',
-    'Augusto_Benavides___Polideportivo_Limatambo.pdf', 'Beethoven.pdf', 'Belizario_Suarez.pdf',
+    'Augusto_Benavides___Polideportivo_Limatambo.pdf', 'Beethoven.pdf', 'Belisario_Suarez.pdf',
     'Bolivariano.pdf', 'Confraternidad_de_las_Américas.pdf', 'De_la_Felicidad.pdf',
     'De_la_Inmigración_China.pdf', 'De_la_Mujer.pdf', 'De_los_Periodistas.pdf',
     'De_Regoyos.pdf', 'Del_Niño.pdf', 'Donatello.pdf', 'Duque_Caxias.pdf', 'El_Greco.pdf',
@@ -1429,7 +1451,7 @@ var PDF_FICHAS_PARQUES = [
     'Ignacio_Marino.pdf', 'Islas_Malvinas.pdf', 'Jacarandá.pdf', 'Japonés.pdf',
     'Javier_Prado_N°2.pdf', 'Juan_Gris.pdf', 'Juan_Pablo_II.pdf', 'Juan_XXIII.pdf',
     'Julio_C.Tello.pdf', 'Julio_Ponce_Antúnez_de_Mayolo.pdf', 'La_Amistad.pdf',
-    'La_Junventud.pdf', 'La_Merced.pdf', 'La_Pradera.pdf', 'Lady_Olave_Badem_Powell.pdf',
+    'La_Junventud.pdf', 'La_Merced.pdf', 'La_Pradera.pdf', 'Lady_Olave_Baden_Powell.pdf',
     'Las_Begonias.pdf', 'Las_Lomas.pdf', 'Libertador_San_Martín.pdf', 'Los_Sauces.pdf',
     'María_Teresa_de_la_Cruz_Candamo.pdf', 'Mariano_Bustamante.pdf', 'Mariano_Santos.pdf',
     'Mario_Moreno.pdf', 'Mario_Polar_Ugarteche.pdf', 'Mariscal_Castilla.pdf',
