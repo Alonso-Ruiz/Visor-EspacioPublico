@@ -2205,7 +2205,7 @@ function mostrarFicha(feature, coordinate) {
 
         var pdfVia = rutaPdfVia(p);
         if (pdfVia) {
-            finalHtml += `<a href="${pdfVia}" target="_blank" rel="noopener noreferrer" class="btn-accion"><i class="fas fa-file-pdf"></i> Ver ficha de PDF</a>`;
+            finalHtml += `<a href="${pdfVia}" target="_blank" rel="noopener noreferrer" class="btn-accion"><i class="fas fa-file-pdf"></i> Ver franja funcional</a>`;
         }
     } else if (tipo === 'epi') {
         title.innerHTML = `<i class="fas fa-draw-polygon"></i> ${p.NOMBRE}`;
@@ -2271,22 +2271,22 @@ function mostrarFicha(feature, coordinate) {
     } else if (tipo === 'surco-zona-reglamentada') {
         title.innerHTML = '<i class="fas fa-landmark"></i> Zona Reglamentada';
         finalHtml += '<p class="feature-description">Zona Reglamentada como Paisaje Arqueológico R.VM. N.º 041-2019-VMPCIC-MC.</p>';
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver franja funcional');
     } else if (tipo === 'surco-faja') {
         title.innerHTML = '<i class="fas fa-water"></i> Faja marginal del Canal de Río Surco';
         finalHtml += '<p class="feature-description">Faja marginal del Canal de Río Surco según Resolución Jefatural N.º 332-2016-ANA.</p>';
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver franja funcional');
     } else if (tipo === 'surco-uso-restringido') {
         title.innerHTML = '<i class="fas fa-leaf"></i> Zona de usos restringidos';
         finalHtml += '<p class="feature-description">Área asociada al Canal de Río Surco con usos restringidos.</p>';
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver franja funcional');
     } else if (tipo === 'rio-surco') {
         var situacionSurco = p['situación'] || p.situacion || p.TIPO || 'Canal de Río Surco';
         title.innerHTML = '<i class="fas fa-water"></i> Río Surco';
         agregarFilaValida(htmlRows, 'Situación', situacionSurco);
         agregarFilaValida(htmlRows, 'Longitud', p.LONGITUD ? Number(p.LONGITUD).toLocaleString('es-PE', { maximumFractionDigits: 2 }) + ' m' : '');
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
-        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
+        finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver franja funcional');
     } else if (tipo === 'bien-cultural-huaca') {
         var nombreBienCultural = p.NOMBRE || 'Bien Cultural Inmueble';
         var nombreBienNormalizado = normalizarTextoFiltro(nombreBienCultural);
@@ -2294,10 +2294,10 @@ function mostrarFicha(feature, coordinate) {
         agregarFilaValida(htmlRows, 'Nombre', nombreBienCultural);
         finalHtml += `<table class="tabla-attr">${htmlRows.join('')}</table>`;
         if (nombreBienNormalizado.includes('calera')) {
-            finalHtml += botonPdfFicha(rutaArchivoPdf('pdf/rio-surco', PDF_FICHAS_RIO_SURCO.calera1), 'Ver ficha de PDF Sector 1');
-            finalHtml += botonPdfFicha(rutaArchivoPdf('pdf/rio-surco', PDF_FICHAS_RIO_SURCO.calera2), 'Ver ficha de PDF Sector 2');
+            finalHtml += botonPdfFicha(rutaArchivoPdf('pdf/rio-surco', PDF_FICHAS_RIO_SURCO.calera1), 'Ver franja funcional Sector 1');
+            finalHtml += botonPdfFicha(rutaArchivoPdf('pdf/rio-surco', PDF_FICHAS_RIO_SURCO.calera2), 'Ver franja funcional Sector 2');
         } else {
-            finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver ficha de PDF');
+            finalHtml += botonPdfFicha(rutaPdfRioSurco(tipo, p), 'Ver franja funcional');
         }
     }
 
@@ -2305,7 +2305,7 @@ function mostrarFicha(feature, coordinate) {
         var pdfParque = rutaPdfParque(p);
         finalHtml = construirStreetView(coordinate)
             + '<button type="button" class="btn-accion btn-accion--3d" onclick="window.abrirParque3DSeleccionado()"><i class="fas fa-chart-pie"></i> Ver parámetro del parque</button>'
-            + botonPdfFicha(pdfParque, 'Ver ficha de PDF');
+            + botonPdfFicha(pdfParque, 'Ver franja funcional');
     }
 
     content.innerHTML = finalHtml;
