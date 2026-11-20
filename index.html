@@ -28,7 +28,7 @@
 
     <title>Reglamento de Espacios Públicos | San Borja</title>
 
-    <link rel="stylesheet" href="assets/css/app.css?v=20260928-ui">
+    <link rel="stylesheet" href="assets/css/app.css?v=20261120-ancho-ficha">
 </head>
 
 <body>
@@ -129,6 +129,9 @@
             aria-controls="sat-opacity-panel" title="Transparencia del mapa">
             <i class="fas fa-circle-half-stroke" aria-hidden="true"></i><span>Transparencia</span>
         </button>
+        <button id="btn-tree-search" type="button" aria-haspopup="dialog" aria-controls="tree-search-modal" title="Buscar árboles">
+            <i class="fas fa-tree" aria-hidden="true"></i><span>Árbol</span>
+        </button>
         <div id="sat-opacity-panel" class="sat-opacity-panel" hidden>
             <strong>Transparencia del mapa</strong>
             <input type="range" id="sat-opacity" min="0" max="1" step="0.05" value="0.3"
@@ -137,6 +140,21 @@
     </nav>
     <img id="streetview-drag-ghost" src="images/pegman.png" width="24" height="24" alt="" aria-hidden="true"
         decoding="async">
+
+    <dialog id="tree-search-modal" aria-labelledby="tree-search-title">
+        <header class="tree-search-header">
+            <div><h2 id="tree-search-title">Árboles de San Borja</h2><p>Encuentra una especie y descubre dónde está.</p></div>
+            <button id="tree-search-close" type="button" aria-label="Cerrar buscador de árboles"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+        </header>
+        <label for="tree-search-input">Nombre común o científico</label>
+        <div class="tree-search-field">
+            <input id="tree-search-input" type="search" placeholder="Ej.: ficus, molle, jacarandá…" autocomplete="off" autofocus>
+            <button id="tree-search-clear" type="button" aria-label="Borrar búsqueda" hidden><i class="fas fa-xmark" aria-hidden="true"></i></button>
+        </div>
+        <p id="tree-search-status" role="status" aria-live="polite"></p>
+        <div id="tree-search-results"></div>
+        <p class="tree-search-note">Cantidades según el inventario disponible del visor; incluyen parques y otras ubicaciones del distrito.</p>
+    </dialog>
 
     <button id="btn-abrir-panel" type="button" title="Abrir menú de capas" aria-label="Abrir menú de capas"
         aria-expanded="false" aria-controls="panel-derecho"><i class="fas fa-bars"></i></button>
@@ -637,8 +655,9 @@
     <script defer src="layers/BORDEDESUBMANZANAYREALIBRE_3.js"></script>
 
     <script defer src="styles/Bienes_culturales_Inmuebles_0_style.js"></script>
-    <script defer src="assets/js/app.js?v=20261110-tree-worker"></script>
+    <script defer src="assets/js/app.js?v=20261120-tree-viewport"></script>
     <script defer src="assets/js/streetview.js?v=20260930-render2"></script>
+    <script defer src="assets/js/tree-search.js?v=20261120"></script>
 </body>
 
 </html>

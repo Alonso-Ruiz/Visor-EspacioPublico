@@ -1,4 +1,5 @@
 :root {
+    --ancho-ficha-visor: 332px;
     --header-height: 58px;
     --legend-width: min(350px, 42vw);
     --sb-bg: #f1f5f9;
@@ -123,7 +124,7 @@ body:not(.visor-entered) :is(#app-header, #left-panel, #map-utility-controls, #b
     top: calc(var(--header-height) + 15px);
     left: 20px;
     z-index: 2200;
-    width: 282px;
+    width: var(--ancho-ficha-visor);
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -222,7 +223,8 @@ body:not(.visor-entered) :is(#app-header, #left-panel, #map-utility-controls, #b
 }
 
 #ficha-tecnica {
-    width: 330px;
+    width: var(--ancho-ficha-visor);
+    box-sizing: border-box;
     max-width: calc(100vw - 40px);
     min-height: 0;
     background: white;
@@ -1177,16 +1179,6 @@ body:not(.visor-entered) :is(#app-header, #left-panel, #map-utility-controls, #b
     white-space: normal;
 }
 
-/* Canvas independiente: mostrar/ocultar ATU no repinta las demás capas. */
-.atu-layer {
-    will-change: opacity;
-}
-
-.atu-layer:not(.atu-visible) {
-    opacity: 0 !important;
-    pointer-events: none;
-}
-
 .ol-tree-popover {
     position: relative;
     width: 270px;
@@ -1905,8 +1897,8 @@ input[type="range"] {
 /* Herramientas: medidas del estándar compartido de visores. */
 #map-utility-controls {
     position: fixed; bottom: 19px; left: 20px; z-index: 2300;
-    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: 304px; height: 55px; padding: 5px 6px; box-sizing: border-box;
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: var(--ancho-ficha-visor); height: 55px; padding: 5px 6px; box-sizing: border-box;
     border-radius: 13px; background: rgba(255,255,255,.98);
     box-shadow: 0 6px 16px rgba(16,64,53,.2);
 }
@@ -2329,3 +2321,42 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--sb-green-
 @media (prefers-reduced-motion: reduce) {
     #panel-derecho, #header-box, #map-utility-controls, #ficha-tecnica, #btn-north, .ol-zoom, .ol-scale-line { transition: none; }
 }
+
+/* District tree inventory search */
+#tree-search-modal { width: min(680px, calc(100% - 32px)); max-height: 85dvh; box-sizing: border-box; padding: 26px; border: 0; border-radius: 20px; color: #183e33; background: #fff; box-shadow: 0 24px 80px #0004; font: 14px 'Segoe UI', Arial, sans-serif; }
+#tree-search-modal::backdrop { background: #102e2866; backdrop-filter: blur(4px); }
+.tree-search-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+.tree-search-header h2 { margin: 0 0 6px; font-size: 24px; }
+.tree-search-header p { margin: 0; color: #61756e; }
+#tree-search-close { flex-shrink: 0; width: 36px; height: 36px; border: 0; border-radius: 50%; background: #edf5f0; color: #183e33; font-size: 26px; cursor: pointer; }
+#tree-search-modal label { display: block; font-weight: 600; margin-bottom: 8px; }
+#tree-search-input { box-sizing: border-box; width: 100%; padding: 14px; border: 1px solid #b9cfc4; border-radius: 10px; font: inherit; font-size: 16px; }
+#tree-search-modal :focus-visible { outline: 3px solid #008b56; outline-offset: 3px; }
+#tree-search-status, .tree-search-note { color: #61756e; line-height: 1.5; }
+.tree-search-note { font-size: 12px; margin-bottom: 0; }
+.tree-search-option { border: 1px solid #dce8e1; border-radius: 12px; margin: 10px 0; overflow: hidden; }
+.tree-search-option summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; padding: 16px; background: #f4f9f6; }
+.tree-search-option summary::before { content: '+'; font-size: 20px; }
+.tree-search-option[open] summary::before { content: '−'; }
+.tree-search-option summary > span:first-of-type { flex: 1; min-width: 0; }
+.tree-search-option strong, .tree-search-option em { display: block; }
+.tree-search-option em { color: #61756e; font-size: 12px; margin-top: 4px; }
+.tree-search-count { color: #00784b; font-weight: 700; text-align: right; }
+.tree-search-breakdown { padding: 0 16px 16px; }
+.tree-search-breakdown h3 { font-size: 14px; margin: 18px 0 8px; }
+.tree-search-breakdown ul { list-style: none; padding: 0; margin: 0; }
+.tree-search-breakdown li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid #edf2ef; }
+@media (max-width: 600px) { #tree-search-modal { padding: 18px; } .tree-search-header h2 { font-size: 21px; } .tree-search-count { max-width: 95px; font-size: 12px; } }
+.tree-search-field { position: relative; }
+#tree-search-input { padding-right: 48px; }
+#tree-search-input::-webkit-search-cancel-button { -webkit-appearance: none; }
+#tree-search-close, #tree-search-clear { font-size: 18px; }
+#tree-search-clear { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border: 0; border-radius: 50%; background: #edf5f0; color: #183e33; cursor: pointer; }
+.tree-search-option summary { padding: 12px 14px; }
+.tree-search-breakdown ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.tree-search-breakdown li { align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid #e3ece6; border-radius: 8px; font-size: 12px; background: #fafcfb; }
+.tree-search-breakdown li strong { flex-shrink: 0; padding: 4px 7px; border-radius: 6px; background: #e7f3ec; color: #00784b; font-size: 13px; }
+.tree-search-pagination { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; color: #61756e; font-size: 12px; }
+.tree-search-pagination button { border: 1px solid #dce8e1; background: #f4f9f6; color: #183e33; border-radius: 7px; padding: 7px 10px; cursor: pointer; font: inherit; }
+.tree-search-pagination button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 440px) { .tree-search-breakdown ul { grid-template-columns: 1fr; } }

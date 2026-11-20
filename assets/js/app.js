@@ -211,8 +211,8 @@ var fichaCloseTimer = null;
 var fichaStreetTimer = null;
 var parque3DSeleccionado = null;
 var parque3DCacheArboles = new Map();
-var arbolesMapaPromise = null;
-var arbolesMapaCargados = false;
+var revisionVistaArboles = 0;
+var zonasArbolesCargadas = [];
 var arbolSeleccionadoId = null;
 var overlayArbol = null;
 
@@ -542,9 +542,6 @@ var styleRedVialFn = function (feature, resolution) {
 var styleHighlight = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#3b82f6', width: 5 }), fill: new ol.style.Fill({ color: 'rgba(59, 130, 246, 0.3)' }) });
 var ARBOLES_ZOOM_VISIBLE = 17;
 var styleArbolCache = new Map();
-var styleArbolCopa = function () {
-    return null;
-};
 var styleArbolPunto = function (feature, resolution) {
     var zoom = map.getView().getZoomForResolution(resolution);
     if (zoom < ARBOLES_ZOOM_VISIBLE) return null;
@@ -733,7 +730,7 @@ aplicarManzanasBase();
 // Las etiquetas conservan su renderizado vectorial para mantenerse legibles al rotar.
 var capasEtiquetasMapa = [];
 function crearCapaVectorCacheada(opciones) {
-    var capa = new ol.layer.VectorImage(Object.assign({ imageRatio: 1.5, renderBuffer: 48 }, opciones));
+    var capa = new ol.layer.VectorImage(Object.assign({ imageRatio: 1.2, renderBuffer: 48 }, opciones));
     var listenerSource = null;
     function enlazarExtent() {
         if (listenerSource) ol.Observable.unByKey(listenerSource);
@@ -788,14 +785,12 @@ var vectorEpiLimatambo = crearCapaVectorCacheada({ source: new ol.source.Vector(
 var vectorEpiTorres = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresEpiTorres }), style: styleEpiTorres, zIndex: 11 });
 var vectorPistaTorresSanBorja = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: featuresPistaTorres }), style: stylePistaTorresSanBorja, zIndex: 10.6 });
 var vectorServidumbres = crearCapaVectorCacheada({ source: new ol.source.Vector({ features: typeof json_Servidumbredepaso_EPI_LT_3 !== 'undefined' ? crearFeatures(json_Servidumbredepaso_EPI_LT_3, 'servidumbre') : [] }), style: styleServidumbre, zIndex: 11 });
-// Preparar ATU desde el inicio y reutilizar su imagen durante los gestos.
-// El interruptor solo cambia la composición visual, nunca su visibilidad OL.
 var vectorAtu = new ol.layer.VectorImage({
     className: 'ol-layer atu-layer',
     imageRatio: 1.2,
     source: new ol.source.Vector({ features: typeof json_TU_detallado_0 !== 'undefined' ? crearFeatures(json_TU_detallado_0, 'atu') : [] }),
     style: styleAtuFn,
-    visible: true,
+    visible: false,
     renderBuffer: 32,
     updateWhileAnimating: false,
     updateWhileInteracting: false,
@@ -822,7 +817,7 @@ var vectorParques = crearCapaConEtiquetas({ source: new ol.source.Vector({ featu
 var vectorRedVial = crearCapaConEtiquetas({ source: new ol.source.Vector({ features: typeof json_red_vial_4 !== 'undefined' ? actualizarDatosViales(crearFeatures(json_red_vial_4, 'via')) : [] }), style: styleRedVialFn, declutter: true, zIndex: 14 });
 var sourceArbolesCopa = new ol.source.Vector();
 var sourceArbolesPunto = new ol.source.Vector();
-var vectorArbolesCopa = crearCapaVectorCacheada({ source: sourceArbolesCopa, style: styleArbolCopa, minZoom: ARBOLES_ZOOM_VISIBLE, zIndex: 17 });
+var vectorArbolesCopa = new ol.layer.Vector({ source: sourceArbolesCopa, style: styleArbolPunto, minZoom: ARBOLES_ZOOM_VISIBLE, zIndex: 18.1 });
 var vectorArbolesPunto = crearCapaVectorCacheada({ source: sourceArbolesPunto, style: styleArbolPunto, minZoom: ARBOLES_ZOOM_VISIBLE, imageRatio: 1.1, renderOrder: null, renderBuffer: 48, updateWhileInteracting: false, updateWhileAnimating: false, zIndex: 18 });
 
 var sourceHighlight = new ol.source.Vector();
@@ -913,48 +908,36 @@ function crearFeatureArbolMapa(tree, index) {
     return { punto: punto };
 }
 
-function poblarArbolesMapa() {
-    if (arbolesMapaCargados) return Promise.resolve();
-    var arboles = json_rboles_parque_0.features || [];
-    var indice = 0;
-    // Construir el índice fuera de la capa visible evita repintarla en cada lote.
-    var sourceCarga = new ol.source.Vector();
-    return new Promise(function (resolve, reject) {
-        function programarLote() {
-            if (window.requestIdleCallback) window.requestIdleCallback(poblarLote, { timeout: 250 });
-            else window.setTimeout(poblarLote, 16);
+function poblarArbolesMapa(revision) {
+    var view = map.getView();
+    var extent = ol.extent.buffer(view.calculateExtent(map.getSize()), view.getResolution() * 96);
+    if (zonasArbolesCargadas.some(function (zona) { return ol.extent.containsExtent(zona, extent); })) return;
+    var bounds = ol.proj.transformExtent(extent, view.getProjection(), 'EPSG:4326');
+    var trees = json_rboles_parque_0.features;
+    var cursor = 0;
+    function cargarLote() {
+        if (revision !== revisionVistaArboles || !vectorArbolesPunto.getVisible() ||
+            view.getInteracting() || view.getAnimating()) return;
+        var inicio = performance.now();
+        var puntos = [];
+        while (cursor < trees.length && puntos.length < 120 && performance.now() - inicio < 4) {
+            var id = cursor++;
+            var tree = trees[id];
+            var geom = tree && tree.geometry;
+            if (!geom || geom.type !== 'Point' || !ol.extent.containsCoordinate(bounds, geom.coordinates) ||
+                sourceArbolesPunto.getFeatureById(id)) continue;
+            var punto = crearFeatureArbolMapa(tree, id).punto;
+            punto.setId(id);
+            puntos.push(punto);
         }
-        function poblarLote() {
-            var view = map.getView();
-            if (view.getInteracting() || view.getAnimating()) {
-                window.setTimeout(programarLote, 100);
-                return;
-            }
-            try {
-                var puntos = [];
-                var inicio = performance.now();
-                do {
-                    var tree = arboles[indice];
-                    if (tree && tree.geometry && tree.geometry.type === 'Point') {
-                        var features = crearFeatureArbolMapa(tree, indice);
-                        if (features) {
-                            features.punto.setId(indice);
-                            puntos.push(features.punto);
-                        }
-                    }
-                    indice++;
-                } while (indice < arboles.length && puntos.length < 60 && performance.now() - inicio < 3);
-                if (puntos.length) sourceCarga.addFeatures(puntos);
-                if (indice >= arboles.length) {
-                    sourceArbolesPunto = sourceCarga;
-                    vectorArbolesPunto.setSource(sourceArbolesPunto);
-                    arbolesMapaCargados = true;
-                    resolve();
-                } else programarLote();
-            } catch (error) { reject(error); }
+        if (puntos.length) sourceArbolesPunto.addFeatures(puntos);
+        if (cursor < trees.length) window.requestAnimationFrame(cargarLote);
+        else {
+            zonasArbolesCargadas = zonasArbolesCargadas.filter(function (zona) { return !ol.extent.containsExtent(extent, zona); });
+            zonasArbolesCargadas.push(extent);
         }
-        programarLote();
-    });
+    }
+    cargarLote();
 }
 
 var inventarioArbolesPromise = null;
@@ -977,7 +960,7 @@ function cargarInventarioEnWorker() {
                 resolve();
             } else {
                 // Backpressure keeps deserialization from monopolizing the UI.
-                window.setTimeout(function () { worker.postMessage(null); }, 16);
+                worker.postMessage(null);
             }
         };
         worker.postMessage(null);
@@ -999,44 +982,28 @@ function asegurarInventarioArboles() {
     return inventarioArbolesPromise;
 }
 
-function asegurarArbolesMapa() {
-    if (arbolesMapaCargados) return Promise.resolve();
-    if (!arbolesMapaPromise) {
-        arbolesMapaPromise = asegurarInventarioArboles().then(poblarArbolesMapa).catch(function (error) {
-            arbolesMapaPromise = null;
-            throw error;
-        });
-    }
-    return arbolesMapaPromise;
-}
-
-var timerCargaArbolesZoom = null;
 function revisarCargaArbolesPorZoom() {
-    if (timerCargaArbolesZoom) window.clearTimeout(timerCargaArbolesZoom);
-    if (!filtroActivo('chk-recreacion-general') || !filtroActivo('chk-parques') || !filtroActivo('chk-arboles') || map.getView().getZoom() < ARBOLES_ZOOM_VISIBLE - .2) return;
-    timerCargaArbolesZoom = window.setTimeout(function () {
-        timerCargaArbolesZoom = null;
-        if (map.getView().getZoom() >= ARBOLES_ZOOM_VISIBLE - .2 && filtroActivo('chk-recreacion-general') && filtroActivo('chk-parques') && filtroActivo('chk-arboles')) {
-            if (map.getView().getInteracting() || map.getView().getAnimating()) return;
-            asegurarArbolesMapa().catch(function (error) { console.warn('No se pudo cargar el inventario de árboles', error); });
-        }
-    }, 650);
+    var revision = ++revisionVistaArboles;
+    var view = map.getView();
+    if (!vectorArbolesPunto.getVisible() || view.getZoom() < ARBOLES_ZOOM_VISIBLE - 1) return;
+    asegurarInventarioArboles().then(function () {
+        if (revision === revisionVistaArboles && view.getZoom() >= ARBOLES_ZOOM_VISIBLE) poblarArbolesMapa(revision);
+    }).catch(function (error) { console.warn('No se pudo cargar el inventario de árboles', error); });
 }
 
+map.on('movestart', function () { revisionVistaArboles++; });
 map.on('moveend', revisarCargaArbolesPorZoom);
 revisarCargaArbolesPorZoom();
 
 function marcarArbolSeleccionado(id) {
-    [sourceArbolesCopa, sourceArbolesPunto].forEach(function (source) {
-        if (arbolSeleccionadoId !== null) {
-            var anterior = source.getFeatureById(arbolSeleccionadoId);
-            if (anterior) anterior.set('__treeSelected', false);
-        }
-        if (id !== null) {
-            var actual = source.getFeatureById(id);
-            if (actual) actual.set('__treeSelected', true);
-        }
-    });
+    if (id === arbolSeleccionadoId) return;
+    sourceArbolesCopa.clear(true);
+    var original = id !== null && sourceArbolesPunto.getFeatureById(id);
+    if (original) {
+        var marca = original.clone();
+        marca.set('__treeSelected', true, true);
+        sourceArbolesCopa.addFeature(marca);
+    }
     arbolSeleccionadoId = id;
 }
 
@@ -1187,20 +1154,9 @@ function actualizarEstadoAtu(event) {
         if (input) input.disabled = !grupos[id];
     });
 
-    // Mantener el canvas preparado: alternar ATU no invalida el render del mapa.
-    actualizarVisibilidadCanvasAtu();
+    vectorAtu.setVisible(atuActiva);
     if (event && event.target && event.target.id !== 'chk-atu') vectorAtu.changed();
 }
-
-function actualizarVisibilidadCanvasAtu() {
-    var visible = filtroActivo('chk-atu');
-    map.getViewport().querySelectorAll('.atu-layer').forEach(function (elemento) {
-        elemento.classList.toggle('atu-visible', visible);
-    });
-}
-
-// El contenedor lo crea OpenLayers durante el primer render (o lo reemplaza).
-map.on('postrender', actualizarVisibilidadCanvasAtu);
 
 function actualizarEstadoJuan() {
     var juanActivo = filtroActivo('chk-urb-juan');
@@ -2353,14 +2309,15 @@ function areaFeatureParaPrioridad(feature) {
 }
 
 var capasSinSeleccionInteractiva = new Set([
-    layerHighlight, vectorManzanas, vectorManzanasTorresSanBorja, vectorAreasLibresJuan,
+    layerHighlight, vectorArbolesCopa, vectorManzanas, vectorManzanasTorresSanBorja, vectorAreasLibresJuan,
     vectorManzanasJuan, vectorManzanasLimatambo, vectorMovilidadLimatambo,
     vectorPistaTorresSanBorja,
     vectorJuanPasajesCalles, vectorLimiteDistrital, vectorSectores, vectorSubsectores
 ]);
 
 function featureInteractivaEnPixel(pixel, hitTolerance, soloDetectar) {
-    var candidatos = [];
+    var mejor = null;
+    var mejorPrioridad = Infinity;
 
     var featureHit = map.forEachFeatureAtPixel(pixel, function (feature, layer) {
         var tipo = feature && feature.get('__tipo');
@@ -2368,11 +2325,12 @@ function featureInteractivaEnPixel(pixel, hitTolerance, soloDetectar) {
 
         if (soloDetectar) return feature;
 
-        candidatos.push({
-            feature: feature,
-            prioridad: PRIORIDAD_CLICK_FEATURE[tipo] || 70,
-            area: areaFeatureParaPrioridad(feature)
-        });
+        var prioridad = PRIORIDAD_CLICK_FEATURE[tipo] || 70;
+        if (prioridad < mejorPrioridad || (prioridad === mejorPrioridad &&
+            areaFeatureParaPrioridad(feature) < areaFeatureParaPrioridad(mejor))) {
+            mejor = feature;
+            mejorPrioridad = prioridad;
+        }
     }, {
         hitTolerance: hitTolerance,
         layerFilter: function (layer) {
@@ -2383,14 +2341,7 @@ function featureInteractivaEnPixel(pixel, hitTolerance, soloDetectar) {
 
     if (soloDetectar) return featureHit || null;
 
-    if (!candidatos.length) return null;
-
-    candidatos.sort(function (a, b) {
-        if (a.prioridad !== b.prioridad) return a.prioridad - b.prioridad;
-        return a.area - b.area;
-    });
-
-    return candidatos[0].feature;
+    return mejor;
 }
 
 map.on('singleclick', function (evt) {
