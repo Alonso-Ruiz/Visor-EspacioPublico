@@ -2350,8 +2350,9 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--sb-green-
 .tree-search-field { position: relative; }
 #tree-search-input { padding-right: 48px; }
 #tree-search-input::-webkit-search-cancel-button { -webkit-appearance: none; }
-#tree-search-close, #tree-search-clear { font-size: 18px; }
-#tree-search-clear { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border: 0; border-radius: 50%; background: #edf5f0; color: #183e33; cursor: pointer; }
+#tree-search-close { font-size: 18px; }
+#tree-search-clear { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border: 0; border-radius: 6px; background: transparent; color: #576b63; font-size: 13px; cursor: pointer; }
+#tree-search-clear:hover { color: #183e33; background: #f2f6f4; }
 .tree-search-option summary { padding: 12px 14px; }
 .tree-search-breakdown ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .tree-search-breakdown li { align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid #e3ece6; border-radius: 8px; font-size: 12px; background: #fafcfb; }
@@ -2360,3 +2361,8 @@ button:focus-visible, summary:focus-visible { outline: 2px solid var(--sb-green-
 .tree-search-pagination button { border: 1px solid #dce8e1; background: #f4f9f6; color: #183e33; border-radius: 7px; padding: 7px 10px; cursor: pointer; font: inherit; }
 .tree-search-pagination button:disabled { opacity: .4; cursor: default; }
 @media (max-width: 440px) { .tree-search-breakdown ul { grid-template-columns: 1fr; } }
+#tree-search-modal .tree-order { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.tree-order select { padding: 6px; border: 1px solid #b9cfc4; border-radius: 7px; color: inherit; background: white; }
+.tree-search-breakdown li { padding: 0; }
+.tree-location-link { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; border: 0; border-radius: inherit; background: transparent; color: #174d80; font: inherit; text-align: left; cursor: pointer; }
+.tree-location-link:hover { background: #eaf3fc; }

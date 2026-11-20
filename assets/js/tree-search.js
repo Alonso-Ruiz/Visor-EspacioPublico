@@ -5,7 +5,7 @@ function normalizarBusquedaArbol(value) {
 
 function indexarBusquedaArboles(features) {
     var groups = new Map();
-    features.forEach(function (feature) {
+    features.forEach(function (feature, id) {
         var p = feature.properties || {};
         var common = String(p.NOMBRE_COM || 'Sin nombre común').trim();
         var scientific = String(p.NOMBRE_CIE || '').trim();
@@ -17,8 +17,11 @@ function indexarBusquedaArboles(features) {
         var name = String(p['UBICACIÓN'] || 'Sin ubicación registrada').trim();
         var park = normalizarBusquedaArbol(p.Tipo_de_V) === 'parque' || /^parque\b/.test(normalizarBusquedaArbol(name));
         var locationKey = normalizarBusquedaArbol(name);
-        if (!group.locations.has(locationKey)) group.locations.set(locationKey, { name: name, park: park, count: 0 });
-        group.locations.get(locationKey).count++;
+        if (!group.locations.has(locationKey)) group.locations.set(locationKey, { name: name, park: park, count: 0, ids: [] });
+        var location = group.locations.get(locationKey);
+        location.count++;
+        if (feature.geometry && feature.geometry.type === 'Point' && feature.geometry.coordinates.slice(0, 2).length === 2 &&
+            feature.geometry.coordinates.slice(0, 2).every(Number.isFinite)) location.ids.push(id);
     });
     return Array.from(groups.values()).sort(function (a, b) { return a.common.localeCompare(b.common, 'es'); });
 }
@@ -29,6 +32,40 @@ function indexarBusquedaArboles(features) {
     var status = document.getElementById('tree-search-status');
     var results = document.getElementById('tree-search-results');
     var index = null;
+    var order = document.getElementById('tree-order');
+    var highlights;
+    function mostrarUbicacion(location) {
+        if (!highlights) {
+            highlights = new ol.layer.Vector({
+                source: new ol.source.Vector(), zIndex: 19,
+                style: new ol.style.Style({ image: new ol.style.Circle({
+                    radius: 7, fill: new ol.style.Fill({ color: '#1671eb' }),
+                    stroke: new ol.style.Stroke({ color: '#fff', width: 2 })
+                }) })
+            });
+            map.addLayer(highlights);
+            vectorArbolesPunto.on('change:visible', function () {
+                if (!vectorArbolesPunto.getVisible()) highlights.getSource().clear(true);
+            });
+        }
+        var source = highlights.getSource();
+        source.clear(true);
+        source.addFeatures(location.ids.map(function (id) {
+            var punto = crearFeatureArbolMapa(window.json_rboles_parque_0.features[id], id).punto;
+            punto.setId(id);
+            return punto;
+        }));
+        ['chk-recreacion-general', 'chk-parques', 'chk-arboles'].forEach(function (id) { document.getElementById(id).checked = true; });
+        actualizarEstadoRecreacion();
+        modal.close();
+        cerrarFicha();
+        cambiarEstadoLeyenda(false);
+        overlayArbol.setPosition(undefined);
+        marcarArbolSeleccionado(null);
+        map.getView().cancelAnimations();
+        map.getView().fit(source.getExtent(), { padding: [95, 65, 106, 48], maxZoom: 20, duration: 320 });
+    }
+    order.addEventListener('change', function () { resultPage = 0; render(); });
     var loading = false;
     var resultPage = 0;
     var clear = document.getElementById('tree-search-clear');
@@ -63,6 +100,7 @@ function indexarBusquedaArboles(features) {
             var name = normalizarBusquedaArbol(group.common + ' ' + group.scientific);
             return terms.every(function (term) { return name.includes(term); });
         });
+        if (order.value === 'count') matches.sort(function (a, b) { return b.total - a.total || a.common.localeCompare(b.common, 'es'); });
         status.textContent = matches.length
             ? matches.length + (matches.length === 1 ? ' opción · ' : ' opciones · ') + format.format(matches.reduce(function (sum, group) { return sum + group.total; }, 0)) + ' árboles registrados. Selecciona una opción para ver sus ubicaciones.'
             : 'No se encontraron árboles con ese nombre. Prueba otro nombre común o científico.';
@@ -93,7 +131,13 @@ function indexarBusquedaArboles(features) {
                         list.replaceChildren();
                         subset.slice(page * 6, page * 6 + 6).forEach(function (location) {
                             var row = element('li');
-                            row.append(element('span', location.name), element('strong', format.format(location.count)));
+                            var button = element('button', undefined, 'tree-location-link');
+                            button.type = 'button';
+                            button.disabled = !location.ids.length;
+                            button.title = 'Ver árboles en el mapa';
+                            button.append(element('span', location.name), element('strong', format.format(location.count)));
+                            button.addEventListener('click', function () { mostrarUbicacion(location); });
+                            row.append(button);
                             list.append(row);
                         });
                         if (subset.length > 6) {

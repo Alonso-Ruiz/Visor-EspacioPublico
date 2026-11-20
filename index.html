@@ -28,7 +28,7 @@
 
     <title>Reglamento de Espacios Públicos | San Borja</title>
 
-    <link rel="stylesheet" href="assets/css/app.css?v=20261120-ancho-ficha">
+    <link rel="stylesheet" href="assets/css/app.css?v=20261120-borrar">
 </head>
 
 <body>
@@ -151,6 +151,9 @@
             <input id="tree-search-input" type="search" placeholder="Ej.: ficus, molle, jacarandá…" autocomplete="off" autofocus>
             <button id="tree-search-clear" type="button" aria-label="Borrar búsqueda" hidden><i class="fas fa-xmark" aria-hidden="true"></i></button>
         </div>
+        <label class="tree-order" for="tree-order">Ordenar especies por
+            <select id="tree-order"><option value="name">Nombre (A–Z)</option><option value="count">Cantidad (mayor a menor)</option></select>
+        </label>
         <p id="tree-search-status" role="status" aria-live="polite"></p>
         <div id="tree-search-results"></div>
         <p class="tree-search-note">Cantidades según el inventario disponible del visor; incluyen parques y otras ubicaciones del distrito.</p>
@@ -657,7 +660,7 @@
     <script defer src="styles/Bienes_culturales_Inmuebles_0_style.js"></script>
     <script defer src="assets/js/app.js?v=20261120-tree-viewport"></script>
     <script defer src="assets/js/streetview.js?v=20260930-render2"></script>
-    <script defer src="assets/js/tree-search.js?v=20261120"></script>
+    <script defer src="assets/js/tree-search.js?v=20261120-parques"></script>
 </body>
 
 </html>
